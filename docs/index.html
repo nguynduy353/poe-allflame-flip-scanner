@@ -58,7 +58,7 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 <body>
 <div class="wrap">
 <h1>PoE Allflame Flip Scanner v5.3</h1>
-<div class="sub">V5.3 thêm <b>Gold Fee</b>, <b>Profit / 1M Gold</b> và quyết định dựa trên cả ROI vốn lẫn hiệu suất Gold. Bảng được rút gọn để tập trung vào dữ liệu flip thực tế.</div>
+<div class="sub">V5.3 <b>Closed Loop</b>: tính đủ vòng <b>Chaos → Item → Divine → Chaos</b>, gồm Gold của cả 3 chặng và lợi nhuận thật sau khi hoàn vốn Chaos.</div>
 
 <div class="card">
   <label>Cloudflare Worker URL</label>
@@ -86,6 +86,17 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
   <div><label>BUY NOW Gold D / 1M</label><input id="buyNowGoldD" type="number" value="7" step="0.1"></div>
   <div><label>Gold budget / batch</label><input id="goldBudget" type="number" value="2000000" step="10000"></div>
  </div>
+ <div class="grid" style="grid-template-columns:repeat(4,minmax(150px,1fr));margin-top:8px">
+  <div><label>Divine → Chaos rate</label><input id="recycleChaosPerDiv" type="number" value="210.8" step="0.01"></div>
+  <div><label>Recycle Gold Fee</label><input id="recycleGoldFee" type="number" value="0" step="1000"></div>
+  <div><label>Recycle mode</label>
+    <select id="recycleMode">
+      <option value="capital" selected>Chỉ đổi đủ để hoàn vốn Chaos</option>
+      <option value="all">Đổi toàn bộ Divine về Chaos</option>
+    </select>
+  </div>
+  <div><label>Closed-loop min D / 1M Gold</label><input id="closedLoopMinDPerM" type="number" value="5" step="0.1"></div>
+ </div>
 
  <div id="cats" class="checks" style="margin-top:11px"></div>
  <div class="checks" style="margin-top:9px">
@@ -103,7 +114,7 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
    <button class="sec" onclick="clearFaustus()">XÓA GIÁ FAUSTUS</button>
    <button class="sec" onclick="exportCsv()">EXPORT CSV</button>
  </div>
- <div id="status" class="status">Sẵn sàng. V5.3 có timeout + thông báo lỗi, Gold Fee và Profit/1M Gold.</div>
+ <div id="status" class="status">Sẵn sàng. V5.3 Closed Loop có timeout + thông báo lỗi, Gold Fee 3 chặng và Net D/1M Gold.</div>
  <div class="small" style="margin-top:7px">V5.2: BUY nhập Chaos/item + số lượng → tự tính tổng Chaos. Đồng thời vẫn remap legacy name như <b>Maven's Orb → Orb of Dominance</b> và gộp các entry trùng tên trước khi xếp hạng.</div>
 </div>
 
@@ -114,11 +125,11 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
  </div>
  <div class="tablewrap"><table><thead><tr>
    <th>★ / Item</th><th>Liq.</th><th>7d</th>
-   <th>Buy c/item</th><th>Sell D/item</th><th>Profit c</th><th>ROI</th>
-   <th>Buy Gold</th><th>Sell Gold</th><th>Total Gold</th><th>Profit/1M Gold</th>
-   <th>Decision</th><th></th>
+   <th>Buy c/item</th><th>Sell D/item</th><th>Qty</th>
+   <th>Gross Profit D</th><th>Recycle D</th><th>Net Profit D</th>
+   <th>Total Gold</th><th>Net D/1M Gold</th><th>ROI</th><th>Decision</th><th></th>
  </tr></thead><tbody id="rows"></tbody></table></div>
- <div class="small" style="margin-top:7px">Bảng chỉ giữ các chỉ số phục vụ quyết định flip: thanh khoản, biến động, giá Buy/Sell thực, ROI, Gold fee và Profit/1M Gold.</div>
+ <div class="small" style="margin-top:7px">Bảng tính vòng khép kín: mua bằng Chaos → bán lấy Divine → đổi đủ Divine về Chaos để hồi vốn. Net Profit D và Net D/1M Gold mới là chỉ số quyết định chính.</div>
 </div>
 
 <div class="side">
@@ -153,7 +164,7 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
    <div><label>Buy Gold Fee</label><input id="buyGoldFee" type="number" min="0" step="1000" placeholder="500000"></div>
    <div><label>Sell Gold Fee</label><input id="sellGoldFee" type="number" min="0" step="1000" placeholder="300000"></div>
  </div>
- <div class="small" style="margin-top:5px">Nhập đúng Gold fee hiển thị trong Faustus cho order/batch này. Scanner sẽ lưu theo item.</div>
+ <div class="small" style="margin-top:5px">Nhập đúng Gold fee hiển thị trong Faustus cho order/batch này. Gold đổi Divine → Chaos lấy từ phần cấu hình Closed Loop phía trên.</div>
 
  <button style="margin-top:9px" onclick="saveQuick()">LƯU RATIO + GOLD</button>
  <div id="qResult" class="status">Chưa chọn item.</div>
@@ -281,7 +292,7 @@ function init(){
  const c=window.POE_FLIP_CONFIG||{},saved=localStorage.getItem("poeWorkerUrl");
  workerUrl.value=saved||c.workerUrl||"";
  [...EX,...ST].forEach(([id,label])=>{const l=document.createElement("label");l.innerHTML=`<input type="checkbox" value="${id}" ${DEFAULT.has(id)?"checked":""}> ${label}`;cats.appendChild(l)});
- ["minValue","maxValue","minVol","maxChange","queueSize","divRate","targetRoi","buyNowRoi","goldBenchmarkD","goodGoldD","buyNowGoldD","goldBudget","excludeBase","queueOnly","enteredOnly","watchOnly","profitableOnly"]
+ ["minValue","maxValue","minVol","maxChange","queueSize","divRate","targetRoi","buyNowRoi","goldBenchmarkD","goodGoldD","buyNowGoldD","goldBudget","recycleChaosPerDiv","recycleGoldFee","recycleMode","closedLoopMinDPerM","excludeBase","queueOnly","enteredOnly","watchOnly","profitableOnly"]
  .forEach(id=>document.getElementById(id).addEventListener("input",()=>items.length&&render()));
  [buyChaosPerItemInput,buyItemQty,buyPlus,sellDivQty,sellItemQty,sellMinus,buyGoldFee,sellGoldFee].forEach(el=>el.addEventListener("input",previewQuick));
  [buyChaosPerItemInput,buyItemQty,sellDivQty,sellItemQty,buyGoldFee,sellGoldFee].forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter")saveQuick()}));
@@ -397,12 +408,51 @@ function ratioStatsForKey(k){
  return{...f,buyItem:bi,buyUnit:bu,buyChaosTotal,sellDiv:sd,sellItem:si,buy,sell,buyGold,sellGold,totalGold};
 }
 function realStats(x){
- const f=ratioStatsForKey(keyFor(x)),dr=n(divRate.value,223);
- if(!f.buy||!f.sell)return{entered:false,...f,profit:null,roi:null,profitPerDiv:null,profitDiv:null,profitPer1MGold:null};
- const revenue=f.sell*dr,profit=revenue-f.buy,roi=profit/f.buy*100,profitPerDiv=profit/(f.buy/dr);
- const profitDiv=profit/dr;
- const profitPer1MGold=f.totalGold>0?profitDiv*1000000/f.totalGold:null;
- return{entered:true,...f,revenue,profit,roi,profitPerDiv,profitDiv,profitPer1MGold};
+ const f=ratioStatsForKey(keyFor(x));
+ const divRef=n(divRate.value,223);
+ if(!f.buy||!f.sell||!f.buyItem)return{
+   entered:false,...f,profit:null,roi:null,profitPerDiv:null,profitDiv:null,profitPer1MGold:null,
+   qty:0,buyCostChaos:0,sellRevenueDiv:0,recycleDiv:0,netProfitDiv:null,closedLoopGold:0,netPer1MGold:null
+ };
+
+ const qty=f.buyItem;
+ const buyCostChaos=f.buy*qty;
+ const sellRevenueDiv=f.sell*qty;
+
+ // Gross profit before recycle, using reference Divine rate for comparison.
+ const grossProfitChaos=sellRevenueDiv*divRef-buyCostChaos;
+ const grossProfitDiv=grossProfitChaos/divRef;
+ const roi=grossProfitChaos/buyCostChaos*100;
+
+ const recycleRate=n(recycleChaosPerDiv.value,divRef);
+ let recycleDiv=0;
+ if(recycleMode.value==="all"){
+   recycleDiv=sellRevenueDiv;
+ }else{
+   recycleDiv=recycleRate>0?buyCostChaos/recycleRate:0;
+ }
+
+ // If only recycling enough to restore original Chaos capital:
+ // leftover Divine after restoring Chaos = actual closed-loop profit in Divine.
+ let netProfitDiv;
+ if(recycleMode.value==="all"){
+   const chaosAfterRecycle=sellRevenueDiv*recycleRate;
+   netProfitDiv=(chaosAfterRecycle-buyCostChaos)/recycleRate;
+ }else{
+   netProfitDiv=sellRevenueDiv-recycleDiv;
+ }
+
+ const recycleGold=n(recycleGoldFee.value);
+ const closedLoopGold=f.totalGold+recycleGold;
+ const netPer1MGold=closedLoopGold>0?netProfitDiv*1000000/closedLoopGold:null;
+ const profitPerDiv=grossProfitChaos/(buyCostChaos/divRef);
+
+ return{
+   entered:true,...f,qty,buyCostChaos,sellRevenueDiv,
+   revenue:f.sell*divRef,profit:grossProfitChaos,roi,profitPerDiv,
+   profitDiv:grossProfitDiv,profitPer1MGold:f.totalGold>0?grossProfitDiv*1000000/f.totalGold:null,
+   recycleRate,recycleDiv,recycleGold,closedLoopGold,netProfitDiv,netPer1MGold
+ };
 }
 function score(x){
  const liq=Math.log10(Math.max(1,x.vol)+10),val=Math.log10(x.value+2),stability=1/(1+Math.abs(x.change)/120);
@@ -413,11 +463,13 @@ function score(x){
 function grade(x,s){if(s>=150&&x.vol>=10000&&Math.abs(x.change)<=120)return"A";if(s>=105&&x.vol>=3000)return"B";if(s>=70)return"C";return"D"}
 function decision(rs){
  if(!rs.entered)return"UNKNOWN";
- if(rs.roi<=0)return"SKIP";
- const goldKnown=rs.totalGold>0 && rs.profitPer1MGold!=null;
- const buyGoldTarget=n(buyNowGoldD.value,7),goodGoldTarget=n(goodGoldD.value,5);
- if(rs.roi>=n(buyNowRoi.value,15) && (!goldKnown || rs.profitPer1MGold>=buyGoldTarget))return"BUY NOW";
- if(rs.roi>=n(targetRoi.value,10) && (!goldKnown || rs.profitPer1MGold>=goodGoldTarget))return"GOOD";
+ if(rs.netProfitDiv==null || rs.netProfitDiv<=0)return"SKIP";
+ const goldKnown=rs.closedLoopGold>0 && rs.netPer1MGold!=null;
+ const minClosed=n(closedLoopMinDPerM.value,5);
+ const buyGoldTarget=Math.max(n(buyNowGoldD.value,7),minClosed);
+ const goodGoldTarget=Math.max(n(goodGoldD.value,5),minClosed);
+ if(rs.roi>=n(buyNowRoi.value,15) && (!goldKnown || rs.netPer1MGold>=buyGoldTarget))return"BUY NOW";
+ if(rs.roi>=n(targetRoi.value,10) && (!goldKnown || rs.netPer1MGold>=goodGoldTarget))return"GOOD";
  return"MARGINAL";
 }
 function badgeClass(d){return d==="BUY NOW"?"buy":d==="GOOD"?"good":d==="MARGINAL"?"marg":d==="SKIP"?"skip":"unknown"}
@@ -445,10 +497,12 @@ function render(){
   const tr=document.createElement("tr"),cc=x.change>0?"up":x.change<0?"down":"",k=keyFor(x),star=watch[k]?"on":"",rc=x.rs.entered?(x.rs.roi>=10?"roi-good":x.rs.roi>0?"roi-mid":"roi-bad"):"";
   tr.innerHTML=`<td><div class="name"><span class="star ${star}">★</span>${x.icon?`<img src="${esc(x.icon)}" onerror="this.style.display='none'">`:""}<span>${esc(x.name)}</span></div></td>
   <td>${fmt(x.vol)}</td><td class="${cc}">${x.change>=0?"+":""}${x.change.toFixed(1)}%</td>
-  <td>${x.rs.entered?x.rs.buy.toFixed(2)+"c":"—"}</td><td>${x.rs.entered?x.rs.sell.toFixed(4)+"D":"—"}</td>
-  <td class="${rc}">${x.rs.entered?x.rs.profit.toFixed(1)+"c":"—"}</td><td class="${rc}">${x.rs.entered?x.rs.roi.toFixed(1)+"%":"—"}</td>
-  <td>${x.rs.buyGold?fmt(x.rs.buyGold):"—"}</td><td>${x.rs.sellGold?fmt(x.rs.sellGold):"—"}</td><td>${x.rs.totalGold?fmt(x.rs.totalGold):"—"}</td>
-  <td class="${x.rs.profitPer1MGold!=null?(x.rs.profitPer1MGold>=n(goldBenchmarkD.value,7)?"roi-good":x.rs.profitPer1MGold>=n(goodGoldD.value,5)?"roi-mid":"roi-bad"):""}">${x.rs.profitPer1MGold!=null?x.rs.profitPer1MGold.toFixed(2)+"D":"—"}</td>
+  <td>${x.rs.entered?x.rs.buy.toFixed(2)+"c":"—"}</td><td>${x.rs.entered?x.rs.sell.toFixed(4)+"D":"—"}</td><td>${x.rs.entered?x.rs.qty:"—"}</td>
+  <td class="${rc}">${x.rs.entered?x.rs.profitDiv.toFixed(2)+"D":"—"}</td><td>${x.rs.entered?x.rs.recycleDiv.toFixed(2)+"D":"—"}</td>
+  <td class="${x.rs.entered?(x.rs.netProfitDiv>=0?"roi-good":"roi-bad"):""}">${x.rs.entered?x.rs.netProfitDiv.toFixed(2)+"D":"—"}</td>
+  <td>${x.rs.entered&&x.rs.closedLoopGold?fmt(x.rs.closedLoopGold):"—"}</td>
+  <td class="${x.rs.netPer1MGold!=null?(x.rs.netPer1MGold>=n(buyNowGoldD.value,7)?"roi-good":x.rs.netPer1MGold>=n(closedLoopMinDPerM.value,5)?"roi-mid":"roi-bad"):""}">${x.rs.netPer1MGold!=null?x.rs.netPer1MGold.toFixed(2)+"D":"—"}</td>
+  <td class="${rc}">${x.rs.entered?x.rs.roi.toFixed(1)+"%":"—"}</td>
   <td><span class="badge ${badgeClass(x.d)}">${x.d}</span></td>
   <td><button class="sec mini">Analyze</button></td>`;
   tr.querySelector(".star").onclick=()=>toggleWatch(k);tr.querySelector("button").onclick=()=>selectItem(x);rows.appendChild(tr);
@@ -482,9 +536,14 @@ function previewQuick(){
  const dr=n(divRate.value,223);
  if(!buy||!bi||!sell){qResult.innerHTML=`<span class="orange">Nhập Chaos/item, số lượng item và ratio SELL.</span>`;return}
  const profit=sell*dr-buy,roi=profit/buy*100;
- const bg=n(buyGoldFee.value),sg=n(sellGoldFee.value),tg=bg+sg,profitD=profit/dr;
- const perM=tg>0?profitD*1000000/tg:null;
- qResult.innerHTML=`Buy <b>${buy.toFixed(2)}c/item</b> × ${bi} = <b>${total.toFixed(2)}c tổng</b><br>Sell <b>${sell.toFixed(4)}D/item</b> · Profit <b class="${profit>=0?"ok":"bad"}">${profit.toFixed(2)}c/item</b> · ROI <b>${roi.toFixed(2)}%</b>${tg>0?`<br>Gold <b>${fmt(tg)}</b> · Hiệu suất <b>${perM.toFixed(2)}D / 1M Gold</b>`:""}`;
+ const bg=n(buyGoldFee.value),sg=n(sellGoldFee.value),reGold=n(recycleGoldFee.value),tg=bg+sg+reGold;
+ const recycleRate=n(recycleChaosPerDiv.value,dr);
+ const buyTotal=buy*bi;
+ const sellTotalDiv=sell*bi;
+ const recycleDiv=recycleMode.value==="all"?sellTotalDiv:(recycleRate>0?buyTotal/recycleRate:0);
+ const netD=recycleMode.value==="all"?((sellTotalDiv*recycleRate-buyTotal)/recycleRate):(sellTotalDiv-recycleDiv);
+ const perM=tg>0?netD*1000000/tg:null;
+ qResult.innerHTML=`Buy <b>${buy.toFixed(2)}c/item</b> × ${bi} = <b>${total.toFixed(2)}c tổng</b><br>Sell <b>${sell.toFixed(4)}D/item</b> · Gross ROI <b>${roi.toFixed(2)}%</b><br>Recycle <b>${recycleDiv.toFixed(2)}D</b> → hoàn vốn Chaos · Net <b class="${netD>=0?"ok":"bad"}">${netD.toFixed(2)}D</b>${tg>0?`<br>Total Gold <b>${fmt(tg)}</b> · Net <b>${perM.toFixed(2)}D / 1M Gold</b>`:""}`;
 }
 function saveQuick(){
  if(!selectedKey)return;
@@ -500,9 +559,9 @@ function renderSummary(all){
  kBuyNow.textContent=buy.length;kGood.textContent=good.length;
  if(!entered.length){kBestRoi.textContent="—";kBestGold.textContent="—";bestList.textContent="Chưa có giá Faustus.";return}
  entered.sort((a,b)=>b.rs.roi-a.rs.roi);kBestRoi.textContent=entered[0].rs.roi.toFixed(1)+"%";
- const goldRows=entered.filter(x=>x.rs.profitPer1MGold!=null).sort((a,b)=>b.rs.profitPer1MGold-a.rs.profitPer1MGold);
- kBestGold.textContent=goldRows.length?goldRows[0].rs.profitPer1MGold.toFixed(2)+"D":"—";
- bestList.innerHTML=entered.slice(0,5).map((x,i)=>`${i+1}. <b>${esc(x.name)}</b> — <span class="badge ${badgeClass(x.d)}">${x.d}</span> ${x.rs.roi.toFixed(1)}%${x.rs.profitPer1MGold!=null?`, ${x.rs.profitPer1MGold.toFixed(2)}D/1M Gold`:""}`).join("<br>");
+ const goldRows=entered.filter(x=>x.rs.netPer1MGold!=null).sort((a,b)=>b.rs.netPer1MGold-a.rs.netPer1MGold);
+ kBestGold.textContent=goldRows.length?goldRows[0].rs.netPer1MGold.toFixed(2)+"D":"—";
+ bestList.innerHTML=entered.slice(0,5).map((x,i)=>`${i+1}. <b>${esc(x.name)}</b> — <span class="badge ${badgeClass(x.d)}">${x.d}</span> ${x.rs.roi.toFixed(1)}%${x.rs.netPer1MGold!=null?`, ${x.rs.netPer1MGold.toFixed(2)}D/1M Gold`:""}`).join("<br>");
 }
 function updateSelectedProjection(){
  if(!selectedKey){p100.textContent=p500.textContent=p1000.textContent="—";capMeta.textContent="Chưa chọn item.";return}
@@ -512,8 +571,8 @@ function updateSelectedProjection(){
  const a=project(100),b=project(500),c=project(1000);
  p100.textContent=`+${a.profitD.toFixed(1)}D`;p500.textContent=`+${b.profitD.toFixed(1)}D`;p1000.textContent=`+${c.profitD.toFixed(1)}D`;
  const gb=n(goldBudget.value,2000000);
- const batches=rs.totalGold>0?Math.floor(gb/rs.totalGold):null;
- capMeta.innerHTML=`<b>${esc(x.name)}</b><br>100D mua ~${a.qty} item · 500D ~${b.qty} · 1000D ~${c.qty}.${batches!=null?`<br>Gold budget ${fmt(gb)} đủ khoảng <b>${batches}</b> batch tương tự.`:` <span class="small">Chưa nhập Gold fee.</span>`}`;
+ const batches=rs.closedLoopGold>0?Math.floor(gb/rs.closedLoopGold):null;
+ capMeta.innerHTML=`<b>${esc(x.name)}</b><br>100D mua ~${a.qty} item · 500D ~${b.qty} · 1000D ~${c.qty}.${batches!=null?`<br>Gold budget ${fmt(gb)} đủ khoảng <b>${batches}</b> closed-loop batch tương tự.`:` <span class="small">Chưa nhập đủ Gold fee.</span>`}<br>Net closed-loop hiện tại: <b>${rs.netProfitDiv.toFixed(2)}D</b> / batch.`;
 }
 function ratioCalc(){
  const t=n(ratio.value),md=Math.max(1,n(maxDen.value,100));let a=[];
@@ -521,10 +580,10 @@ function ratioCalc(){
  a.sort((x,y)=>x.sum-y.sum||x.err-y.err);const b=a[0];ratioOut.innerHTML=b?`<div class="big">${b.z} : ${b.d}</div><div class="small">${b.z}/${b.d} = ${b.r.toFixed(6)} → ${b.r.toFixed(2)}</div>`:`<span class="bad">Không tìm thấy.</span>`;
 }
 function exportCsv(){
- const header=["Item","Liquidity","7d","BuyChaosPerItem","BuyItemQty","BuyChaosTotal","SellDivQty","SellItemQty","SellDivPerItem","ProfitChaos","ROI","BuyGold","SellGold","TotalGold","ProfitDivPer1MGold","Decision"];
+ const header=["Item","Liquidity","7d","BuyChaosPerItem","Qty","BuyChaosTotal","SellDivPerItem","SellRevenueDiv","GrossProfitDiv","RecycleDiv","RecycleRateChaosPerDiv","BuyGold","SellGold","RecycleGold","ClosedLoopGold","NetProfitDiv","NetDivPer1MGold","ROI","Decision"];
  const lines=[header.join(",")];
  buildRows().forEach(x=>{
-  const r=x.rs,vals=[x.name,x.vol,x.change,r.buy||"",r.buyItem||"",r.buyChaosTotal||"",r.sellDiv||"",r.sellItem||"",r.entered?r.sell.toFixed(6):"",r.entered?r.profit.toFixed(2):"",r.entered?r.roi.toFixed(2):"",r.buyGold||"",r.sellGold||"",r.totalGold||"",r.profitPer1MGold!=null?r.profitPer1MGold.toFixed(3):"",x.d];
+  const r=x.rs,vals=[x.name,x.vol,x.change,r.buy||"",r.qty||"",r.buyCostChaos||"",r.entered?r.sell.toFixed(6):"",r.sellRevenueDiv||"",r.entered?r.profitDiv.toFixed(3):"",r.entered?r.recycleDiv.toFixed(3):"",r.recycleRate||"",r.buyGold||"",r.sellGold||"",r.recycleGold||"",r.closedLoopGold||"",r.entered?r.netProfitDiv.toFixed(3):"",r.netPer1MGold!=null?r.netPer1MGold.toFixed(3):"",r.entered?r.roi.toFixed(2):"",x.d];
   lines.push(vals.map(v=>`"${String(v).replaceAll('"','""')}"`).join(","));
  });
  const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`poe-allflame-v5-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(a.href);
