@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v5</title>
+<title>PoE Allflame Flip Scanner v5.2</title>
 <style>
 :root{
   --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
@@ -57,8 +57,8 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v5</h1>
-<div class="sub">V5 nhập trực tiếp ratio Faustus dạng số nguyên: <b>Buy: Item ↔ Chaos</b> và <b>Sell: Divine ↔ Item</b>. Tự quy đổi ra c/item và D/item, rồi tính ROI.</div>
+<h1>PoE Allflame Flip Scanner v5.2</h1>
+<div class="sub">V5.2 đổi phần BUY: nhập trực tiếp Chaos/item + số lượng item, scanner tự tính tổng Chaos. Phần SELL vẫn nhập Divine ↔ Item: <b>Buy: Item ↔ Chaos</b> và <b>Sell: Divine ↔ Item</b>. Tự quy đổi ra c/item và D/item, rồi tính ROI.</div>
 
 <div class="card">
   <label>Cloudflare Worker URL</label>
@@ -98,6 +98,7 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
    <button class="sec" onclick="exportCsv()">EXPORT CSV</button>
  </div>
  <div id="status" class="status">Sẵn sàng.</div>
+ <div class="small" style="margin-top:7px">V5.2: BUY nhập Chaos/item + số lượng → tự tính tổng Chaos. Đồng thời vẫn remap legacy name như <b>Maven's Orb → Orb of Dominance</b> và gộp các entry trùng tên trước khi xếp hạng.</div>
 </div>
 
 <div class="main">
@@ -125,10 +126,10 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 
  <div style="margin-top:9px"><b class="small">BUY — mua item bằng Chaos</b></div>
  <div class="ratio4" style="margin-top:6px">
-   <div><label>Item</label><input id="buyItemQty" type="number" min="1" step="1" placeholder="20"></div>
-   <div><label>Chaos</label><input id="buyChaosQty" type="number" min="1" step="1" placeholder="7600"></div>
-   <div><label>c/item</label><input id="buyPerItem" readonly></div>
-   <div><label>+1 Chaos?</label><select id="buyPlus"><option value="0">Không</option><option value="1">+1 Chaos tổng</option></select></div>
+   <div><label>Chaos / item</label><input id="buyChaosPerItemInput" type="number" min="0" step="0.01" placeholder="268.8"></div>
+   <div><label>Số lượng item</label><input id="buyItemQty" type="number" min="1" step="1" placeholder="5"></div>
+   <div><label>Tổng Chaos</label><input id="buyChaosTotal" readonly></div>
+   <div><label>+1 c/item?</label><select id="buyPlus"><option value="0">Không</option><option value="1">+1 c/item</option></select></div>
  </div>
 
  <div style="margin-top:10px"><b class="small">SELL — bán item lấy Divine</b></div>
@@ -188,7 +189,17 @@ const EX=[
 const ST=[["Vial","Vials"]];
 const DEFAULT=new Set(["Currency","Scarab","Astrolabe","AllflameEmber","Runegraft"]);
 let items=[], autoTimer=null, selectedKey=null;
-let faustus=JSON.parse(localStorage.getItem("poeFaustusRatiosV5")||"{}");
+let faustus=JSON.parse(localStorage.getItem("poeFaustusRatiosV52")||"{}");
+if(!Object.keys(faustus).length){
+  const old=JSON.parse(localStorage.getItem("poeFaustusRatiosV5")||"{}");
+  for(const [k,v] of Object.entries(old)){
+    if(v && v.buyItem && v.buyChaos){
+      v.buyUnit=n(v.buyChaos)/n(v.buyItem);
+    }
+    faustus[k]=v;
+  }
+  if(Object.keys(faustus).length)localStorage.setItem("poeFaustusRatiosV52",JSON.stringify(faustus));
+}
 let watch=JSON.parse(localStorage.getItem("poeWatchlist")||"{}");
 
 function n(v,d=0){v=Number(v);return Number.isFinite(v)?v:d}
@@ -202,14 +213,45 @@ function prettyName(s){
  const low=new Set(["of","the","and","to"]);
  return s.split("-").map((w,i)=>{if(low.has(w)&&i>0)return w;if(w==="mavens")return"Maven's";return w.charAt(0).toUpperCase()+w.slice(1)}).join(" ");
 }
+
+const LEGACY_NAME_MAP = new Map([
+  ["Maven's Orb","Orb of Dominance"],
+  ["Mavens Orb","Orb of Dominance"],
+  ["mavens-orb","Orb of Dominance"],
+  ["Exalted Shard","Exalted Shard"],
+]);
+
+// Những tên này không nên xuất hiện như candidate riêng ở Faustus hiện tại.
+// Ta remap legacy name sang tên hiện hành, sau đó dedupe theo category + canonical name.
+function canonicalName(raw){
+  const p=prettyName(raw);
+  return LEGACY_NAME_MAP.get(raw) || LEGACY_NAME_MAP.get(p) || p;
+}
+
+function dedupeItems(arr){
+  const m=new Map();
+  for(const x of arr){
+    const k=`${x.type}::${x.name}`;
+    const prev=m.get(k);
+    if(!prev){
+      m.set(k,x);
+      continue;
+    }
+    // Giữ entry có liquidity lớn hơn; nếu bằng nhau thì giữ entry có value > 0 ổn định hơn.
+    if(n(x.vol)>n(prev.vol) || (n(x.vol)===n(prev.vol) && n(x.value)>n(prev.value))){
+      m.set(k,x);
+    }
+  }
+  return [...m.values()];
+}
 function init(){
  const c=window.POE_FLIP_CONFIG||{},saved=localStorage.getItem("poeWorkerUrl");
  workerUrl.value=saved||c.workerUrl||"";
  [...EX,...ST].forEach(([id,label])=>{const l=document.createElement("label");l.innerHTML=`<input type="checkbox" value="${id}" ${DEFAULT.has(id)?"checked":""}> ${label}`;cats.appendChild(l)});
  ["minValue","maxValue","minVol","maxChange","queueSize","divRate","targetRoi","buyNowRoi","excludeBase","queueOnly","enteredOnly","watchOnly","profitableOnly"]
  .forEach(id=>document.getElementById(id).addEventListener("input",()=>items.length&&render()));
- [buyItemQty,buyChaosQty,buyPlus,sellDivQty,sellItemQty,sellMinus].forEach(el=>el.addEventListener("input",previewQuick));
- [buyItemQty,buyChaosQty,sellDivQty,sellItemQty].forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter")saveQuick()}));
+ [buyChaosPerItemInput,buyItemQty,buyPlus,sellDivQty,sellItemQty,sellMinus].forEach(el=>el.addEventListener("input",previewQuick));
+ [buyChaosPerItemInput,buyItemQty,sellDivQty,sellItemQty].forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter")saveQuick()}));
  ratioCalc();if(saved&&!saved.includes("YOUR-WORKER"))health();
 }
 function saveWorker(){localStorage.setItem("poeWorkerUrl",workerBase());setStatus(`<span class="ok">✓ Đã lưu Worker URL.</span>`);health()}
@@ -237,12 +279,12 @@ function normalizeExchange(wrapper,type){
   const m=meta[x.id]||{},value=n(x.primaryValue??x.chaosValue??x.chaosEquivalent,0),vol=n(x.volumePerHour??x.volumePrimaryValue??x.volume??x.tradeVolume,0),
   ch=n(x.change7d??x.sparkline?.totalChange??x.sparkLine?.totalChange,sparkChange(x.sparkline||x.sparkLine));
   const rawName=m.name||m.text||x.name||x.currencyTypeName||String(x.id);
-  return{name:prettyName(rawName),icon:m.icon||x.icon||"",value,vol,change:ch,type,kind:"exchange"};
+  return{name:canonicalName(rawName),icon:m.icon||x.icon||"",value,vol,change:ch,type,kind:"exchange"};
  }).filter(x=>x.value>0);
 }
 function normalizeStash(wrapper,type){
  const d=wrapper.data||{};
- return(d.lines||[]).map(x=>({name:prettyName(x.name||x.currencyTypeName||"Unknown"),icon:x.icon||"",value:n(x.chaosValue??x.chaosEquivalent,0),
+ return(d.lines||[]).map(x=>({name:canonicalName(x.name||x.currencyTypeName||"Unknown"),icon:x.icon||"",value:n(x.chaosValue??x.chaosEquivalent,0),
  divine:n(x.divineValue,0),vol:n(x.listingCount??x.count??0),change:n(x.sparkLine?.totalChange,sparkChange(x.sparkLine)),type,kind:"stash"})).filter(x=>x.value>0);
 }
 async function scanAll(){
@@ -256,8 +298,8 @@ async function scanAll(){
   }catch(e){fails.push(`${type}: ${e.message}`)}
   done++;setStatus(`Đang quét ${done}/${selected.length}…`);
  }
- detectDivine();render();
- setStatus(`<span class="ok">✓ ${items.length} item.</span> ${cached}/${selected.length} cache 60s. Lấy lúc: <b>${esc(lastFetch||new Date().toISOString())}</b>${fails.length?`<br><span class="bad">${esc(fails.join(" | "))}</span>`:""}`);
+ items=dedupeItems(items);detectDivine();render();
+ setStatus(`<span class="ok">✓ ${items.length} item sau normalize/dedupe.</span> ${cached}/${selected.length} cache 60s. Lấy lúc: <b>${esc(lastFetch||new Date().toISOString())}</b>${fails.length?`<br><span class="bad">${esc(fails.join(" | "))}</span>`:""}`);
 }
 function detectDivine(){
  const d=items.find(x=>x.type==="Currency"&&x.name.toLowerCase()==="divine orb");
@@ -266,12 +308,14 @@ function detectDivine(){
 function isBaseCurrency(x){return x.type==="Currency"&&["divine orb","chaos orb","mirror of kalandra"].includes(x.name.toLowerCase())}
 function ratioStatsForKey(k){
  const f=faustus[k]||{};
- let bi=n(f.buyItem),bc=n(f.buyChaos),sd=n(f.sellDiv),si=n(f.sellItem);
- if(n(f.buyPlus)===1&&bc>0)bc+=1;
+ let bi=n(f.buyItem),bu=n(f.buyUnit),sd=n(f.sellDiv),si=n(f.sellItem);
+ if(!bu && n(f.buyChaos)>0 && bi>0)bu=n(f.buyChaos)/bi;
+ if(n(f.buyPlus)===1&&bu>0)bu+=1;
  if(n(f.sellMinus)===1&&sd>1)sd-=1;
- const buy=bi>0&&bc>0?bc/bi:0;
+ const buy=bu>0?bu:0;
+ const buyChaosTotal=buy>0&&bi>0?buy*bi:0;
  const sell=sd>0&&si>0?sd/si:0;
- return{...f,buyItem:bi,buyChaos:bc,sellDiv:sd,sellItem:si,buy,sell};
+ return{...f,buyItem:bi,buyUnit:bu,buyChaosTotal,sellDiv:sd,sellItem:si,buy,sell};
 }
 function realStats(x){
  const f=ratioStatsForKey(keyFor(x)),dr=n(divRate.value,223);
@@ -333,33 +377,35 @@ function renderQueue(queue){
  checkQueue.querySelectorAll(".qrow").forEach(el=>el.onclick=()=>{const x=items.find(z=>keyFor(z)===el.dataset.k);if(x)selectItem(x)});
 }
 function toggleWatch(k){if(watch[k])delete watch[k];else watch[k]=true;localStorage.setItem("poeWatchlist",JSON.stringify(watch));render()}
-function clearFaustus(){if(confirm("Xóa toàn bộ ratio Faustus đã nhập?")){faustus={};localStorage.removeItem("poeFaustusRatiosV5");render();clearQuick()}}
+function clearFaustus(){if(confirm("Xóa toàn bộ ratio Faustus đã nhập?")){faustus={};localStorage.removeItem("poeFaustusRatiosV52");render();clearQuick()}}
 function selectItem(x){
  selectedKey=keyFor(x);qName.value=x.name;
  const f=faustus[selectedKey]||{};
- buyItemQty.value=f.buyItem||"";buyChaosQty.value=f.buyChaos||"";buyPlus.value=f.buyPlus||"0";
+ buyChaosPerItemInput.value=f.buyUnit||((n(f.buyChaos)>0&&n(f.buyItem)>0)?(n(f.buyChaos)/n(f.buyItem)).toFixed(4):"");
+ buyItemQty.value=f.buyItem||"";buyPlus.value=f.buyPlus||"0";
  sellDivQty.value=f.sellDiv||"";sellItemQty.value=f.sellItem||"";sellMinus.value=f.sellMinus||"0";
  previewQuick();updateSelectedProjection();
 }
-function clearQuick(){selectedKey=null;qName.value="";buyItemQty.value=buyChaosQty.value=sellDivQty.value=sellItemQty.value="";buyPlus.value=sellMinus.value="0";buyPerItem.value=sellPerItem.value="";qResult.textContent="Chưa chọn item."}
+function clearQuick(){selectedKey=null;qName.value="";buyChaosPerItemInput.value=buyItemQty.value=sellDivQty.value=sellItemQty.value="";buyPlus.value=sellMinus.value="0";buyChaosTotal.value=sellPerItem.value="";qResult.textContent="Chưa chọn item."}
 function previewQuick(){
- let bi=n(buyItemQty.value),bc=n(buyChaosQty.value),sd=n(sellDivQty.value),si=n(sellItemQty.value);
- let bcEff=bc+(n(buyPlus.value)===1&&bc>0?1:0),sdEff=sd-(n(sellMinus.value)===1&&sd>1?1:0);
- const buy=bi>0&&bcEff>0?bcEff/bi:0,sell=sdEff>0&&si>0?sdEff/si:0;
- buyPerItem.value=buy?buy.toFixed(4):"";sellPerItem.value=sell?sell.toFixed(6):"";
+ let bu=n(buyChaosPerItemInput.value),bi=n(buyItemQty.value),sd=n(sellDivQty.value),si=n(sellItemQty.value);
+ let buy=bu+(n(buyPlus.value)===1&&bu>0?1:0),sdEff=sd-(n(sellMinus.value)===1&&sd>1?1:0);
+ const total=buy>0&&bi>0?buy*bi:0,sell=sdEff>0&&si>0?sdEff/si:0;
+ buyChaosTotal.value=total?total.toFixed(2):"";
+ sellPerItem.value=sell?sell.toFixed(6):"";
  if(!selectedKey){qResult.textContent="Chưa chọn item.";return}
  const dr=n(divRate.value,223);
- if(!buy||!sell){qResult.innerHTML=`<span class="orange">Nhập đủ 4 số ratio.</span>`;return}
+ if(!buy||!bi||!sell){qResult.innerHTML=`<span class="orange">Nhập Chaos/item, số lượng item và ratio SELL.</span>`;return}
  const profit=sell*dr-buy,roi=profit/buy*100;
- qResult.innerHTML=`Buy <b>${buy.toFixed(2)}c/item</b> · Sell <b>${sell.toFixed(4)}D/item</b><br>Profit <b class="${profit>=0?"ok":"bad"}">${profit.toFixed(2)}c/item</b> · ROI <b>${roi.toFixed(2)}%</b>`;
+ qResult.innerHTML=`Buy <b>${buy.toFixed(2)}c/item</b> × ${bi} = <b>${total.toFixed(2)}c tổng</b><br>Sell <b>${sell.toFixed(4)}D/item</b> · Profit <b class="${profit>=0?"ok":"bad"}">${profit.toFixed(2)}c/item</b> · ROI <b>${roi.toFixed(2)}%</b>`;
 }
 function saveQuick(){
  if(!selectedKey)return;
  faustus[selectedKey]={
-  buyItem:n(buyItemQty.value)||"",buyChaos:n(buyChaosQty.value)||"",buyPlus:n(buyPlus.value)||0,
+  buyUnit:n(buyChaosPerItemInput.value)||"",buyItem:n(buyItemQty.value)||"",buyPlus:n(buyPlus.value)||0,
   sellDiv:n(sellDivQty.value)||"",sellItem:n(sellItemQty.value)||"",sellMinus:n(sellMinus.value)||0
  };
- localStorage.setItem("poeFaustusRatiosV5",JSON.stringify(faustus));render();previewQuick();
+ localStorage.setItem("poeFaustusRatiosV52",JSON.stringify(faustus));render();previewQuick();
 }
 function renderSummary(all){
  const entered=all.filter(x=>x.rs.entered),buy=entered.filter(x=>x.d==="BUY NOW"),good=entered.filter(x=>x.d==="GOOD");
@@ -383,10 +429,10 @@ function ratioCalc(){
  a.sort((x,y)=>x.sum-y.sum||x.err-y.err);const b=a[0];ratioOut.innerHTML=b?`<div class="big">${b.z} : ${b.d}</div><div class="small">${b.z}/${b.d} = ${b.r.toFixed(6)} → ${b.r.toFixed(2)}</div>`:`<span class="bad">Không tìm thấy.</span>`;
 }
 function exportCsv(){
- const header=["Item","Category","ValueChaos","Liquidity","7d","ScanScore","Grade","BuyItemQty","BuyChaosQty","BuyChaosPerItem","SellDivQty","SellItemQty","SellDivPerItem","ProfitChaos","ROI","Decision","ProfitPerDivCapital"];
+ const header=["Item","Category","ValueChaos","Liquidity","7d","ScanScore","Grade","BuyChaosPerItem","BuyItemQty","BuyChaosTotal","SellDivQty","SellItemQty","SellDivPerItem","ProfitChaos","ROI","Decision","ProfitPerDivCapital"];
  const lines=[header.join(",")];
  buildRows().forEach(x=>{
-  const r=x.rs,vals=[x.name,x.type,x.value,x.vol,x.change,x.s.toFixed(2),x.g,r.buyItem||"",r.buyChaos||"",r.entered?r.buy.toFixed(4):"",r.sellDiv||"",r.sellItem||"",r.entered?r.sell.toFixed(6):"",r.entered?r.profit.toFixed(2):"",r.entered?r.roi.toFixed(2):"",x.d,r.entered?r.profitPerDiv.toFixed(2):""];
+  const r=x.rs,vals=[x.name,x.type,x.value,x.vol,x.change,x.s.toFixed(2),x.g,r.buy||"",r.buyItem||"",r.buyChaosTotal||"",r.sellDiv||"",r.sellItem||"",r.entered?r.sell.toFixed(6):"",r.entered?r.profit.toFixed(2):"",r.entered?r.roi.toFixed(2):"",x.d,r.entered?r.profitPerDiv.toFixed(2):""];
   lines.push(vals.map(v=>`"${String(v).replaceAll('"','""')}"`).join(","));
  });
  const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`poe-allflame-v5-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(a.href);
