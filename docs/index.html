@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v5.2</title>
+<title>PoE Allflame Flip Scanner v5.2.1</title>
 <style>
 :root{
   --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
@@ -57,7 +57,7 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v5.2</h1>
+<h1>PoE Allflame Flip Scanner v5.2.1</h1>
 <div class="sub">V5.2 đổi phần BUY: nhập trực tiếp Chaos/item + số lượng item, scanner tự tính tổng Chaos. Phần SELL vẫn nhập Divine ↔ Item: <b>Buy: Item ↔ Chaos</b> và <b>Sell: Divine ↔ Item</b>. Tự quy đổi ra c/item và D/item, rồi tính ROI.</div>
 
 <div class="card">
@@ -91,13 +91,13 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
  </div>
 
  <div class="actions" style="margin-top:11px">
-   <button onclick="scanAll()">QUÉT THỊ TRƯỜNG</button>
-   <button class="sec" onclick="health()">KIỂM TRA WORKER</button>
+   <button id="scanBtn" onclick="scanAll()">QUÉT THỊ TRƯỜNG</button>
+   <button id="healthBtn" class="sec" onclick="health()">KIỂM TRA WORKER</button>
    <button class="sec" onclick="toggleAuto()">AUTO: <span id="autoTxt">OFF</span></button>
    <button class="sec" onclick="clearFaustus()">XÓA GIÁ FAUSTUS</button>
    <button class="sec" onclick="exportCsv()">EXPORT CSV</button>
  </div>
- <div id="status" class="status">Sẵn sàng.</div>
+ <div id="status" class="status">Sẵn sàng. V5.2.1 có timeout + thông báo lỗi để nút không còn treo im lặng.</div>
  <div class="small" style="margin-top:7px">V5.2: BUY nhập Chaos/item + số lượng → tự tính tổng Chaos. Đồng thời vẫn remap legacy name như <b>Maven's Orb → Orb of Dominance</b> và gộp các entry trùng tên trước khi xếp hạng.</div>
 </div>
 
@@ -206,7 +206,25 @@ function n(v,d=0){v=Number(v);return Number.isFinite(v)?v:d}
 function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
 function fmt(v){v=n(v);if(Math.abs(v)>=1e6)return(v/1e6).toFixed(1)+"m";if(Math.abs(v)>=1e3)return(v/1e3).toFixed(1)+"k";return v.toLocaleString(undefined,{maximumFractionDigits:2})}
 function workerBase(){return workerUrl.value.trim().replace(/\/+$/,"")}
-function setStatus(x){status.innerHTML=x}
+function setStatus(x){
+ const el=document.getElementById("status");
+ if(el)el.innerHTML=x;
+}
+function setBusy(which,on,label){
+ const id=which==="scan"?"scanBtn":"healthBtn";
+ const b=document.getElementById(id);
+ if(!b)return;
+ if(on){
+   if(!b.dataset.oldText)b.dataset.oldText=b.textContent;
+   b.disabled=true;
+   b.textContent=label||"ĐANG XỬ LÝ...";
+ }else{
+   b.disabled=false;
+   b.textContent=b.dataset.oldText||b.textContent;
+ }
+}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+
 function keyFor(x){return `${x.type}::${x.name}`}
 function prettyName(s){
  s=String(s||"").trim();if(!s)return"Unknown";if(!s.includes("-"))return s;
@@ -255,14 +273,38 @@ function init(){
  ratioCalc();if(saved&&!saved.includes("YOUR-WORKER"))health();
 }
 function saveWorker(){localStorage.setItem("poeWorkerUrl",workerBase());setStatus(`<span class="ok">✓ Đã lưu Worker URL.</span>`);health()}
-async function api(path){
+async function api(path,timeoutMs=20000){
  const b=workerBase();if(!b||b.includes("YOUR-WORKER"))throw new Error("Chưa cấu hình Worker URL");
- const r=await fetch(b+path);let j;try{j=await r.json()}catch{throw new Error("Worker không trả JSON")}
- if(!r.ok||!j.ok)throw new Error(j.error||`HTTP ${r.status}`);return j;
+ const controller=new AbortController();
+ const timer=setTimeout(()=>controller.abort(),timeoutMs);
+ let r;
+ try{
+   r=await fetch(b+path,{signal:controller.signal,cache:"no-store"});
+ }catch(e){
+   if(e?.name==="AbortError")throw new Error(`Timeout sau ${Math.round(timeoutMs/1000)} giây: ${path}`);
+   throw new Error(`Fetch lỗi: ${e?.message||e}`);
+ }finally{
+   clearTimeout(timer);
+ }
+ let j;
+ try{j=await r.json()}catch{throw new Error(`Worker không trả JSON (HTTP ${r.status})`)}
+ if(!r.ok||!j.ok)throw new Error(j.error||`HTTP ${r.status}`);
+ return j;
 }
 async function health(){
- try{setStatus("Đang kiểm tra Worker…");const j=await api("/health");setStatus(`<span class="ok">✓ Worker hoạt động.</span> ${esc(j.time||"")}`);await loadLeagues()}
- catch(e){setStatus(`<span class="bad">✗ ${esc(e.message)}</span>`)}
+ setBusy("health",true,"ĐANG KIỂM TRA...");
+ setStatus("Đang kiểm tra Worker…");
+ try{
+   const j=await api("/health",12000);
+   setStatus(`<span class="ok">✓ Worker hoạt động.</span> ${esc(j.time||"")}<br><span class="small">Đang tải danh sách league…</span>`);
+   await loadLeagues();
+   setStatus(`<span class="ok">✓ Worker hoạt động bình thường.</span> ${esc(j.time||"")}`);
+ }catch(e){
+   console.error("health()",e);
+   setStatus(`<span class="bad">✗ Kiểm tra Worker thất bại:</span> ${esc(e.message)}<br><span class="small">Nếu lỗi timeout, thử mở trực tiếp URL Worker trong tab mới.</span>`);
+ }finally{
+   setBusy("health",false);
+ }
 }
 async function loadLeagues(){
  try{
@@ -288,18 +330,39 @@ function normalizeStash(wrapper,type){
  divine:n(x.divineValue,0),vol:n(x.listingCount??x.count??0),change:n(x.sparkLine?.totalChange,sparkChange(x.sparkLine)),type,kind:"stash"})).filter(x=>x.value>0);
 }
 async function scanAll(){
- const selected=[...document.querySelectorAll("#cats input:checked")].map(x=>x.value);if(!selected.length)return;
- items=[];let fails=[],done=0,cached=0,lastFetch="";setStatus(`Đang quét 0/${selected.length}…`);
- for(const type of selected){
-  try{
-   const j=await api(`/economy?league=${encodeURIComponent(league.value)}&type=${encodeURIComponent(type)}`);
-   if(j.cached)cached++;lastFetch=j.fetchedAt||lastFetch;
-   const isEx=EX.some(x=>x[0]===type);items.push(...(isEx?normalizeExchange(j,type):normalizeStash(j,type)));
-  }catch(e){fails.push(`${type}: ${e.message}`)}
-  done++;setStatus(`Đang quét ${done}/${selected.length}…`);
+ const selected=[...document.querySelectorAll("#cats input:checked")].map(x=>x.value);
+ if(!selected.length){setStatus(`<span class="bad">Hãy chọn ít nhất 1 category.</span>`);return}
+ setBusy("scan",true,"ĐANG QUÉT...");
+ items=[];
+ let fails=[],done=0,cached=0,lastFetch="";
+ setStatus(`Đang quét 0/${selected.length} category…`);
+ try{
+   for(const type of selected){
+     try{
+       setStatus(`Đang quét <b>${esc(type)}</b> — ${done}/${selected.length}…`);
+       const j=await api(`/economy?league=${encodeURIComponent(league.value)}&type=${encodeURIComponent(type)}`,20000);
+       if(j.cached)cached++;
+       lastFetch=j.fetchedAt||lastFetch;
+       const isEx=EX.some(x=>x[0]===type);
+       items.push(...(isEx?normalizeExchange(j,type):normalizeStash(j,type)));
+     }catch(e){
+       console.error("scan category",type,e);
+       fails.push(`${type}: ${e.message}`);
+     }
+     done++;
+     setStatus(`Đã xử lý ${done}/${selected.length} category… ${fails.length?`<span class="orange">${fails.length} lỗi</span>`:""}`);
+     await sleep(20);
+   }
+   items=dedupeItems(items);
+   detectDivine();
+   render();
+   setStatus(`<span class="ok">✓ Quét xong: ${items.length} item sau normalize/dedupe.</span> ${cached}/${selected.length} cache 60s. Lấy lúc: <b>${esc(lastFetch||new Date().toISOString())}</b>${fails.length?`<br><span class="orange">Có ${fails.length} category lỗi:</span> ${esc(fails.join(" | "))}`:""}`);
+ }catch(e){
+   console.error("scanAll()",e);
+   setStatus(`<span class="bad">✗ Quét bị dừng:</span> ${esc(e.message)}`);
+ }finally{
+   setBusy("scan",false);
  }
- items=dedupeItems(items);detectDivine();render();
- setStatus(`<span class="ok">✓ ${items.length} item sau normalize/dedupe.</span> ${cached}/${selected.length} cache 60s. Lấy lúc: <b>${esc(lastFetch||new Date().toISOString())}</b>${fails.length?`<br><span class="bad">${esc(fails.join(" | "))}</span>`:""}`);
 }
 function detectDivine(){
  const d=items.find(x=>x.type==="Currency"&&x.name.toLowerCase()==="divine orb");
