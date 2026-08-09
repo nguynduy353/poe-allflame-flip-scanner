@@ -77,8 +77,8 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
   <div><label>Max |7d| %</label><input id="maxChange" type="number" value="250"></div>
   <div><label>Queue size</label><input id="queueSize" type="number" value="15"></div>
   <div><label>1 Divine = Chaos</label><input id="divRate" type="number" value="223" step=".01"></div>
-  <div><label>Target ROI %</label><input id="targetRoi" type="number" value="10" step=".5"></div>
-  <div><label>BUY NOW ROI %</label><input id="buyNowRoi" type="number" value="15" step=".5"></div>
+  <div><label>GOOD Min Net Profit D</label><input id="targetRoi" type="number" value="0.25" step=".05"></div>
+  <div><label>BUY NOW Min Net Profit D</label><input id="buyNowRoi" type="number" value="1" step=".1"></div>
  </div>
  <div class="grid" style="grid-template-columns:repeat(4,minmax(140px,1fr));margin-top:8px">
   <div><label>Gold benchmark D / 1M</label><input id="goldBenchmarkD" type="number" value="7" step="0.1"></div>
@@ -114,7 +114,7 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
    <button class="sec" onclick="clearFaustus()">XÓA GIÁ FAUSTUS</button>
    <button class="sec" onclick="exportCsv()">EXPORT CSV</button>
  </div>
- <div id="status" class="status">Sẵn sàng. V5.3 Closed Loop có timeout + thông báo lỗi, Gold Fee 3 chặng và Net D/1M Gold.</div>
+ <div id="status" class="status">Sẵn sàng. V5.4 Closed Loop: Decision ưu tiên Net D/1M Gold → Net Profit D → Liquidity. ROI chỉ còn là chỉ số tham khảo.</div>
  <div class="small" style="margin-top:7px">V5.2: BUY nhập Chaos/item + số lượng → tự tính tổng Chaos. Đồng thời vẫn remap legacy name như <b>Maven's Orb → Orb of Dominance</b> và gộp các entry trùng tên trước khi xếp hạng.</div>
 </div>
 
@@ -129,7 +129,7 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
    <th>Gross Profit D</th><th>Recycle D</th><th>Net Profit D</th>
    <th>Total Gold</th><th>Net D/1M Gold</th><th>ROI</th><th>Decision</th><th></th>
  </tr></thead><tbody id="rows"></tbody></table></div>
- <div class="small" style="margin-top:7px">Bảng tính vòng khép kín: mua bằng Chaos → bán lấy Divine → đổi đủ Divine về Chaos để hồi vốn. Net Profit D và Net D/1M Gold mới là chỉ số quyết định chính.</div>
+ <div class="small" style="margin-top:7px">Bảng tính vòng khép kín: mua bằng Chaos → bán lấy Divine → đổi đủ Divine về Chaos để hồi vốn. Decision V5.4 ưu tiên Net D/1M Gold trước, sau đó Net Profit D và Liquidity. ROI chỉ hiển thị để tham khảo.</div>
 </div>
 
 <div class="side">
@@ -468,8 +468,13 @@ function decision(rs){
  const minClosed=n(closedLoopMinDPerM.value,5);
  const buyGoldTarget=Math.max(n(buyNowGoldD.value,7),minClosed);
  const goodGoldTarget=Math.max(n(goodGoldD.value,5),minClosed);
- if(rs.roi>=n(buyNowRoi.value,15) && (!goldKnown || rs.netPer1MGold>=buyGoldTarget))return"BUY NOW";
- if(rs.roi>=n(targetRoi.value,10) && (!goldKnown || rs.netPer1MGold>=goodGoldTarget))return"GOOD";
+ const buyNetTarget=n(buyNowRoi.value,1);
+ const goodNetTarget=n(targetRoi.value,.25);
+ // V5.4: Gold efficiency is primary, actual closed-loop profit is secondary. ROI is informational only.
+ if(goldKnown && rs.netPer1MGold>=buyGoldTarget && rs.netProfitDiv>=buyNetTarget)return"BUY NOW";
+ if(goldKnown && rs.netPer1MGold>=goodGoldTarget && rs.netProfitDiv>=goodNetTarget)return"GOOD";
+ // If Gold fee has not been entered yet, avoid pretending ROI can replace closed-loop efficiency.
+ if(!goldKnown && rs.netProfitDiv>=goodNetTarget)return"MARGINAL";
  return"MARGINAL";
 }
 function badgeClass(d){return d==="BUY NOW"?"buy":d==="GOOD"?"good":d==="MARGINAL"?"marg":d==="SKIP"?"skip":"unknown"}
@@ -479,7 +484,13 @@ function buildRows(){
  .map(x=>{const s=score(x),rs=realStats(x);return{...x,s,g:grade(x,s),rs,d:decision(rs)}});
  a.sort((a,b)=>{
   const rank={"BUY NOW":5,"GOOD":4,"MARGINAL":3,"UNKNOWN":2,"SKIP":1};
-  if(a.rs.entered||b.rs.entered){const rr=(rank[b.d]||0)-(rank[a.d]||0);if(rr)return rr;const roi=(b.rs.roi??-999)-(a.rs.roi??-999);if(roi)return roi}
+  if(a.rs.entered||b.rs.entered){
+   const rr=(rank[b.d]||0)-(rank[a.d]||0); if(rr)return rr;
+   // V5.4 sort: Net D/1M Gold -> Net Profit D -> Liquidity. ROI no longer controls ranking.
+   const gold=(b.rs.netPer1MGold??-Infinity)-(a.rs.netPer1MGold??-Infinity); if(gold)return gold;
+   const net=(b.rs.netProfitDiv??-Infinity)-(a.rs.netProfitDiv??-Infinity); if(net)return net;
+   const liq=(b.vol??0)-(a.vol??0); if(liq)return liq;
+  }
   return b.s-a.s;
  });
  return a;
