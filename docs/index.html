@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v3</title>
+<title>PoE Allflame Flip Scanner v4</title>
 <style>
 :root{
-  --bg:#0b1116;--panel:#151d24;--panel2:#1c2730;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
-  --gold:#d3ae62;--green:#48d894;--red:#ff7676;--blue:#5cc8e8;--orange:#f4b860;--violet:#b58cff
+  --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
+  --gold:#d3ae62;--green:#48d894;--red:#ff7676;--orange:#f4b860;--blue:#5cc8e8;--violet:#b58cff
 }
 *{box-sizing:border-box}
 body{margin:0;background:linear-gradient(180deg,#091015,#101820);color:var(--text);font:14px/1.45 Segoe UI,Arial,sans-serif}
@@ -15,47 +15,51 @@ body{margin:0;background:linear-gradient(180deg,#091015,#101820);color:var(--tex
 h1{margin:0;color:#efcf82;font-size:30px}.sub{color:var(--muted);margin:5px 0 16px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:14px;margin-bottom:13px;box-shadow:0 8px 28px #0005}
 .grid{display:grid;grid-template-columns:repeat(9,minmax(110px,1fr));gap:8px}
-.two{display:grid;grid-template-columns:1.9fr .72fr;gap:13px}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:13px;align-items:start}
+.side{position:sticky;top:10px}
 label{display:block;color:var(--muted);font-size:12px;margin-bottom:5px}
 input,select,button{width:100%;background:#0e161c;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px}
 button{cursor:pointer;background:#76591f;border-color:#aa8136;font-weight:700}
-button:hover{filter:brightness(1.12)}
-button.sec{background:#263641;border-color:#435764}
+button:hover{filter:brightness(1.12)}button.sec{background:#263641;border-color:#435764}
 button.mini{width:auto;padding:6px 9px;font-size:12px}
 .actions{display:flex;gap:8px;flex-wrap:wrap}.actions button{width:auto;min-width:138px}
 .status{margin-top:9px;background:#0e161c;border-radius:8px;padding:9px 10px;color:var(--muted)}
-.ok{color:var(--green)}.bad{color:var(--red)}.up{color:#54dfa1}.down{color:#ff8585}.score{color:var(--green);font-weight:800}
-.gold{color:var(--gold)}.orange{color:var(--orange)}.violet{color:var(--violet)}
+.ok{color:var(--green)}.bad{color:var(--red)}.orange{color:var(--orange)}.violet{color:var(--violet)}.up{color:#54dfa1}.down{color:#ff8585}
 .checks{display:flex;gap:9px;flex-wrap:wrap}.checks label{display:flex;align-items:center;gap:5px;color:var(--text);font-size:13px}.checks input{width:auto}
-.tablewrap{overflow:auto;max-height:735px}
-table{width:100%;border-collapse:collapse;min-width:1680px}
+.tablewrap{overflow:auto;max-height:740px}
+table{width:100%;border-collapse:collapse;min-width:1250px}
 th,td{padding:8px 7px;border-bottom:1px solid #2c3943;text-align:right;white-space:nowrap}
 th{position:sticky;top:0;background:#151d24;color:#dec27d;font-size:12px;z-index:2}
 th:first-child,td:first-child{text-align:left}
 .name{display:flex;align-items:center;gap:7px}.name img{width:28px;height:28px;object-fit:contain}
-.pill{display:inline-block;border:1px solid #43525d;border-radius:99px;padding:3px 7px;color:#b8c5ce;font-size:11px}
 .small{font-size:12px;color:var(--muted)}.big{font-size:24px;font-weight:800;color:var(--green)}
 hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 .settings{display:grid;grid-template-columns:1fr auto;gap:8px}.settings button{width:auto}
-.row-input{width:80px;padding:7px 8px}
-.roi-good{color:var(--green);font-weight:800}.roi-mid{color:var(--orange);font-weight:800}.roi-bad{color:var(--red);font-weight:700}
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:9px 0}
+.row-input{width:78px;padding:7px 8px}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:9px 0}
 .kpi{background:#0e161c;border:1px solid #293843;border-radius:9px;padding:9px}.kpi b{display:block;font-size:18px;color:#f2d58e}
+.star{cursor:pointer;font-size:18px;color:#65737d}.star.on{color:#f1c85b}
+.queue{max-height:330px;overflow:auto;border:1px solid #2b3943;border-radius:8px}
+.qrow{padding:8px;border-bottom:1px solid #293640;cursor:pointer}.qrow:hover{background:#1d2932}
+.qtop{display:flex;justify-content:space-between;gap:8px}.qmeta{font-size:11px;color:var(--muted)}
+.badge{display:inline-block;border-radius:999px;padding:3px 7px;font-size:11px;font-weight:800}
+.buy{background:#123e2d;color:#66e5a8}.good{background:#263d22;color:#a9e878}.marg{background:#4a391b;color:#f4cc70}.skip{background:#482326;color:#ff8b8b}.unknown{background:#2b3540;color:#bac7d0}
 .grade{display:inline-block;min-width:25px;text-align:center;border-radius:6px;padding:3px 6px;font-weight:800}
 .gradeA{background:#173f31;color:#65e9aa}.gradeB{background:#3c3517;color:#f5d76d}.gradeC{background:#3b2b19;color:#f3ad61}.gradeD{background:#402124;color:#ff8585}
-.star{cursor:pointer;font-size:18px;color:#65737d}.star.on{color:#f1c85b}
-.quick{display:grid;grid-template-columns:1fr 100px 100px auto;gap:7px;align-items:end}
-.queue{max-height:210px;overflow:auto;border:1px solid #2b3943;border-radius:8px}
-.queue div{padding:7px 8px;border-bottom:1px solid #293640;cursor:pointer}.queue div:hover{background:#1d2932}
-code{color:#cce8f2}
-@media(max-width:1250px){.grid{grid-template-columns:repeat(4,1fr)}.two{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:650px){.grid{grid-template-columns:1fr 1fr}.settings,.quick{grid-template-columns:1fr}}
+.decision{font-weight:800}
+.roi-good{color:var(--green);font-weight:800}.roi-mid{color:var(--orange);font-weight:800}.roi-bad{color:var(--red);font-weight:700}
+.compact{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.capgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.capbox{background:#0e161c;border:1px solid #293843;border-radius:8px;padding:8px;text-align:center}
+.capbox b{display:block;color:#f2d58e}
+@media(max-width:1250px){.grid{grid-template-columns:repeat(4,1fr)}.main{grid-template-columns:1fr}.side{position:static}}
+@media(max-width:650px){.grid{grid-template-columns:1fr 1fr}.settings,.compact,.capgrid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v3</h1>
-<div class="sub">Shortlist bằng poe.ninja → kiểm tra Faustus → nhập Buy/Sell → xếp hạng theo <b>ROI thực</b>. V3 thêm Scan Grade, Watchlist, Quick Entry và mục tiêu ROI.</div>
+<h1>PoE Allflame Flip Scanner v4</h1>
+<div class="sub">V4 tập trung <b>Faustus Check Queue</b>, quyết định <b>BUY NOW / GOOD / MARGINAL / SKIP</b>, và lợi nhuận theo vốn 100D / 500D / 1000D.</div>
 
 <div class="card">
   <label>Cloudflare Worker URL</label>
@@ -72,19 +76,19 @@ code{color:#cce8f2}
   <div><label>Max value c</label><input id="maxValue" type="number" value="2500"></div>
   <div><label>Min liquidity</label><input id="minVol" type="number" value="1000"></div>
   <div><label>Max |7d| %</label><input id="maxChange" type="number" value="250"></div>
-  <div><label>Top results</label><input id="limit" type="number" value="80"></div>
+  <div><label>Queue size</label><input id="queueSize" type="number" value="15"></div>
   <div><label>1 Divine = Chaos</label><input id="divRate" type="number" value="223" step=".01"></div>
   <div><label>Target ROI %</label><input id="targetRoi" type="number" value="10" step=".5"></div>
-  <div><label>Min Profit/100 c</label><input id="minProfit100" type="number" value="0"></div>
+  <div><label>BUY NOW ROI %</label><input id="buyNowRoi" type="number" value="15" step=".5"></div>
  </div>
 
  <div id="cats" class="checks" style="margin-top:11px"></div>
  <div class="checks" style="margin-top:9px">
    <label><input id="excludeBase" type="checkbox" checked> Loại Divine/Chaos/Mirror</label>
+   <label><input id="queueOnly" type="checkbox"> Chỉ Queue</label>
+   <label><input id="enteredOnly" type="checkbox"> Chỉ item đã nhập Faustus</label>
    <label><input id="watchOnly" type="checkbox"> Chỉ Watchlist</label>
-   <label><input id="onlyEntered" type="checkbox"> Chỉ item đã nhập Faustus</label>
-   <label><input id="sortRealRoi" type="checkbox"> Sort ROI thực</label>
-   <label><input id="gradeAOnly" type="checkbox"> Chỉ Grade A/B</label>
+   <label><input id="profitableOnly" type="checkbox"> Chỉ ROI dương</label>
  </div>
 
  <div class="actions" style="margin-top:11px">
@@ -97,68 +101,62 @@ code{color:#cce8f2}
  <div id="status" class="status">Sẵn sàng.</div>
 </div>
 
-<div class="two">
+<div class="main">
 <div class="card">
- <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
-   <b>Ứng viên flip</b><span id="count" class="pill">0 items</span>
+ <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+   <b>Ứng viên flip</b><span id="count" class="small">0 items</span>
  </div>
  <div class="tablewrap"><table><thead><tr>
-   <th>★ / Item</th><th>Cat.</th><th>Value c</th><th>Div ref.</th><th>Liq.</th><th>7d</th>
-   <th>Grade</th><th>Scan Score</th><th>Max Buy@ROI</th><th>Min Sell@ROI</th>
-   <th>Faustus Buy c</th><th>Faustus Sell D</th><th>Profit c</th><th>ROI</th><th>Profit/100</th><th></th>
+   <th>★ / Item</th><th>Cat.</th><th>Value c</th><th>Liq.</th><th>7d</th><th>Grade</th><th>Score</th>
+   <th>Buy c</th><th>Sell D</th><th>Profit c</th><th>ROI</th><th>Decision</th><th>Profit/1D capital</th><th></th>
  </tr></thead><tbody id="rows"></tbody></table></div>
- <div class="small" style="margin-top:7px">
-   <b>Max Buy@ROI</b> = giá Chaos tối đa bạn nên mua nếu bán theo Divine reference hiện tại và muốn đạt Target ROI.
-   <b>Min Sell@ROI</b> = Divine/item tối thiểu cần bán nếu mua ở giá poe.ninja hiện tại.
- </div>
+ <div class="small" style="margin-top:7px">Profit/1D capital giúp so sánh hiệu quả sử dụng vốn giữa item giá rẻ và item giá cao.</div>
 </div>
 
-<div>
+<div class="side">
 <div class="card">
- <b>Quick Faustus Entry</b>
- <p class="small">Chọn item bằng Analyze hoặc click trong Watchlist. Nhập Buy c và Sell D rồi Enter/Lưu.</p>
- <div class="quick">
-   <div><label>Item</label><input id="qName" readonly></div>
-   <div><label>Buy c</label><input id="qBuy" type="number" step=".01"></div>
-   <div><label>Sell D</label><input id="qSell" type="number" step=".001"></div>
-   <button onclick="saveQuick()">LƯU</button>
+ <b>Faustus Check Queue</b>
+ <p class="small">15 item nên mở Faustus trước. Click item để nhập nhanh.</p>
+ <div id="checkQueue" class="queue"><div class="small">Hãy quét thị trường.</div></div>
+</div>
+
+<div class="card">
+ <b>Quick Entry</b>
+ <label>Item</label><input id="qName" readonly>
+ <div class="compact" style="margin-top:8px">
+  <div><label>Buy c</label><input id="qBuy" type="number" step=".01"></div>
+  <div><label>Sell D</label><input id="qSell" type="number" step=".001"></div>
  </div>
+ <button style="margin-top:8px" onclick="saveQuick()">LƯU GIÁ</button>
  <div id="qResult" class="status">Chưa chọn item.</div>
 </div>
 
 <div class="card">
- <b>Flip Summary</b>
+ <b>Decision Summary</b>
  <div class="kpis">
-   <div class="kpi"><span class="small">Đã nhập</span><b id="kEntered">0</b></div>
-   <div class="kpi"><span class="small">ROI tốt nhất</span><b id="kBestRoi">—</b></div>
-   <div class="kpi"><span class="small">Profit/100</span><b id="kBestProfit">—</b></div>
+   <div class="kpi"><span class="small">BUY NOW</span><b id="kBuyNow">0</b></div>
+   <div class="kpi"><span class="small">GOOD</span><b id="kGood">0</b></div>
+   <div class="kpi"><span class="small">Best ROI</span><b id="kBestRoi">—</b></div>
    <div class="kpi"><span class="small">Divine</span><b id="kDiv">—</b></div>
  </div>
  <div id="bestList" class="small">Chưa có giá Faustus.</div>
 </div>
 
 <div class="card">
- <b>Watchlist</b>
- <div id="watchQueue" class="queue"><div class="small">Chưa có item.</div></div>
-</div>
-
-<div class="card">
- <b>Capital Calculator</b>
- <label>Item</label><input id="aName" readonly>
- <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:8px">
-  <div><label>Buy c/item</label><input id="buyC" type="number" step=".01"></div>
-  <div><label>Sell D/item</label><input id="sellD" type="number" step=".001"></div>
-  <div><label>Vốn Divine</label><input id="capitalD" type="number" value="100" step=".1"></div>
-  <div><label>Divine rate</label><input id="arbRate" type="number" value="223" step=".01"></div>
+ <b>Capital Projection</b>
+ <p class="small">Dựa trên item đang chọn và giá Faustus đã nhập.</p>
+ <div class="capgrid">
+   <div class="capbox"><span class="small">100D</span><b id="p100">—</b></div>
+   <div class="capbox"><span class="small">500D</span><b id="p500">—</b></div>
+   <div class="capbox"><span class="small">1000D</span><b id="p1000">—</b></div>
  </div>
- <button style="margin-top:8px" onclick="calcCapital()">TÍNH THEO VỐN</button>
- <hr><div id="arb" class="small">Chưa có dữ liệu.</div>
+ <div id="capMeta" class="small" style="margin-top:8px">Chưa chọn item.</div>
 </div>
 
 <div class="card">
  <b>PoE Ratio Calculator</b>
- <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:8px">
-  <div><label>Market ratio</label><input id="ratio" type="number" value="4.17" step=".01"></div>
+ <div class="compact" style="margin-top:8px">
+  <div><label>Ratio</label><input id="ratio" type="number" value="4.17" step=".01"></div>
   <div><label>Max HAVE</label><input id="maxDen" type="number" value="100"></div>
  </div>
  <button style="margin-top:8px" onclick="ratioCalc()">TÌM CẶP SỐ</button>
@@ -186,7 +184,7 @@ function n(v,d=0){v=Number(v);return Number.isFinite(v)?v:d}
 function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
 function fmt(v){v=n(v);if(Math.abs(v)>=1e6)return(v/1e6).toFixed(1)+"m";if(Math.abs(v)>=1e3)return(v/1e3).toFixed(1)+"k";return v.toLocaleString(undefined,{maximumFractionDigits:2})}
 function workerBase(){return workerUrl.value.trim().replace(/\/+$/,"")}
-function setStatus(html){status.innerHTML=html}
+function setStatus(x){status.innerHTML=x}
 function keyFor(x){return `${x.type}::${x.name}`}
 function prettyName(s){
  s=String(s||"").trim();if(!s)return"Unknown";if(!s.includes("-"))return s;
@@ -194,13 +192,13 @@ function prettyName(s){
  return s.split("-").map((w,i)=>{if(low.has(w)&&i>0)return w;if(w==="mavens")return"Maven's";return w.charAt(0).toUpperCase()+w.slice(1)}).join(" ");
 }
 function init(){
- const c=window.POE_FLIP_CONFIG||{},saved=localStorage.getItem("poeWorkerUrl");
+ const c=window.POE_FLIP_CONFIG||{}, saved=localStorage.getItem("poeWorkerUrl");
  workerUrl.value=saved||c.workerUrl||"";
  [...EX,...ST].forEach(([id,label])=>{const l=document.createElement("label");l.innerHTML=`<input type="checkbox" value="${id}" ${DEFAULT.has(id)?"checked":""}> ${label}`;cats.appendChild(l)});
- ["minValue","maxValue","minVol","maxChange","limit","divRate","targetRoi","minProfit100","excludeBase","watchOnly","onlyEntered","sortRealRoi","gradeAOnly"]
+ ["minValue","maxValue","minVol","maxChange","queueSize","divRate","targetRoi","buyNowRoi","excludeBase","queueOnly","enteredOnly","watchOnly","profitableOnly"]
  .forEach(id=>document.getElementById(id).addEventListener("input",()=>items.length&&render()));
  [qBuy,qSell].forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter")saveQuick()}));
- ratioCalc();renderWatch();if(saved&&!saved.includes("YOUR-WORKER"))health();
+ ratioCalc();if(saved&&!saved.includes("YOUR-WORKER"))health();
 }
 function saveWorker(){localStorage.setItem("poeWorkerUrl",workerBase());setStatus(`<span class="ok">✓ Đã lưu Worker URL.</span>`);health()}
 async function api(path){
@@ -224,15 +222,15 @@ function sparkChange(s){const a=(Array.isArray(s)?s:s?.data||s?.values||[]).filt
 function normalizeExchange(wrapper,type){
  const d=wrapper.data||{},meta=coreItems(d);
  return (d.lines||[]).map(x=>{
-  const m=meta[x.id]||{},value=n(x.primaryValue??x.chaosValue??x.chaosEquivalent,0),vol=n(x.volumePerHour??x.volumePrimaryValue??x.volume??x.tradeVolume,0),
-        ch=n(x.change7d??x.sparkline?.totalChange??x.sparkLine?.totalChange,sparkChange(x.sparkline||x.sparkLine));
-  const rawName=m.name||m.text||x.name||x.currencyTypeName||String(x.id);
-  return {name:prettyName(rawName),rawName,icon:m.icon||x.icon||"",value,vol,change:ch,type,kind:"exchange"};
+   const m=meta[x.id]||{},value=n(x.primaryValue??x.chaosValue??x.chaosEquivalent,0),vol=n(x.volumePerHour??x.volumePrimaryValue??x.volume??x.tradeVolume,0),
+   ch=n(x.change7d??x.sparkline?.totalChange??x.sparkLine?.totalChange,sparkChange(x.sparkline||x.sparkLine));
+   const rawName=m.name||m.text||x.name||x.currencyTypeName||String(x.id);
+   return{name:prettyName(rawName),rawName,icon:m.icon||x.icon||"",value,vol,change:ch,type,kind:"exchange"};
  }).filter(x=>x.value>0);
 }
 function normalizeStash(wrapper,type){
  const d=wrapper.data||{};
- return (d.lines||[]).map(x=>({name:prettyName(x.name||x.currencyTypeName||"Unknown"),rawName:x.name||"",icon:x.icon||"",value:n(x.chaosValue??x.chaosEquivalent,0),
+ return(d.lines||[]).map(x=>({name:prettyName(x.name||x.currencyTypeName||"Unknown"),icon:x.icon||"",value:n(x.chaosValue??x.chaosEquivalent,0),
  divine:n(x.divineValue,0),vol:n(x.listingCount??x.count??0),change:n(x.sparkLine?.totalChange,sparkChange(x.sparkLine)),type,kind:"stash"})).filter(x=>x.value>0);
 }
 async function scanAll(){
@@ -251,152 +249,133 @@ async function scanAll(){
 }
 function detectDivine(){
  const d=items.find(x=>x.type==="Currency"&&x.name.toLowerCase()==="divine orb");
- if(d&&d.value>20){divRate.value=d.value.toFixed(2);arbRate.value=d.value.toFixed(2)}
+ if(d&&d.value>20)divRate.value=d.value.toFixed(2);
 }
 function isBaseCurrency(x){return x.type==="Currency"&&["divine orb","chaos orb","mirror of kalandra"].includes(x.name.toLowerCase())}
 function realStats(x){
  const f=faustus[keyFor(x)]||{},buy=n(f.buy),sell=n(f.sell),dr=n(divRate.value,223);
- if(!buy||!sell)return{entered:false,buy,sell,profit:null,roi:null,p100:null};
- const profit=sell*dr-buy,roi=profit/buy*100;return{entered:true,buy,sell,profit,roi,p100:profit*100};
+ if(!buy||!sell)return{entered:false,buy,sell,profit:null,roi:null,p100:null,profitPerDiv:null};
+ const revenue=sell*dr,profit=revenue-buy,roi=profit/buy*100,profitPerDiv=profit/(buy/dr);
+ return{entered:true,buy,sell,revenue,profit,roi,p100:profit*100,profitPerDiv};
 }
-function simpleFractionQuality(divRef){
- if(!divRef||divRef<=0)return 0;
- let best=999;
- for(let d=1;d<=20;d++){let a=Math.round(divRef*d);best=Math.min(best,Math.abs(a/d-divRef))}
- return 1/(1+best*80);
+function score(x){
+ const liq=Math.log10(Math.max(1,x.vol)+10),val=Math.log10(x.value+2),stability=1/(1+Math.abs(x.change)/120);
+ const band=x.value>=30&&x.value<=1400?1.3:x.value<=2200?1.08:.85;
+ const ex=x.kind==="exchange"?1.2:.72;
+ const churn=x.vol/(x.value+25);
+ const churnBoost=1+Math.min(.25,Math.log10(churn+1)/20);
+ return liq*val*stability*band*ex*churnBoost*10;
 }
-function scanScore(x){
- const liq=Math.log10(Math.max(1,x.vol)+10);
- const val=Math.log10(x.value+2);
- const stability=1/(1+Math.abs(x.change)/120);
- const band=x.value>=30&&x.value<=1400?1.28:x.value<=2200?1.08:.85;
- const ex=x.kind==="exchange"?1.18:.72;
- const divRef=x.value/n(divRate.value,223);
- const ratioEase=.85+.3*simpleFractionQuality(divRef);
- return liq*val*stability*band*ex*ratioEase*10;
+function grade(x,s){if(s>=150&&x.vol>=10000&&Math.abs(x.change)<=120)return"A";if(s>=105&&x.vol>=3000)return"B";if(s>=70)return"C";return"D"}
+function decision(rs){
+ if(!rs.entered)return"UNKNOWN";
+ const buyNow=n(buyNowRoi.value,15),target=n(targetRoi.value,10);
+ if(rs.roi>=buyNow)return"BUY NOW";
+ if(rs.roi>=target)return"GOOD";
+ if(rs.roi>0)return"MARGINAL";
+ return"SKIP";
 }
-function gradeFor(x,score){
- let g="D";
- if(score>=150&&x.vol>=10000&&Math.abs(x.change)<=120)g="A";
- else if(score>=105&&x.vol>=3000&&Math.abs(x.change)<=180)g="B";
- else if(score>=70)g="C";
- return g;
+function badgeClass(d){return d==="BUY NOW"?"buy":d==="GOOD"?"good":d==="MARGINAL"?"marg":d==="SKIP"?"skip":"unknown"}
+function buildRows(){
+ let a=items.filter(x=>x.value>=n(minValue.value)&&x.value<=n(maxValue.value,1e99)&&x.vol>=n(minVol.value)&&Math.abs(x.change)<=n(maxChange.value,1e99))
+   .filter(x=>!excludeBase.checked||!isBaseCurrency(x))
+   .map(x=>{const s=score(x),rs=realStats(x);return{...x,s,g:grade(x,s),rs,d:decision(rs)}});
+ a.sort((a,b)=>{
+   const rank={"BUY NOW":5,"GOOD":4,"MARGINAL":3,"UNKNOWN":2,"SKIP":1};
+   if(a.rs.entered||b.rs.entered){
+     const rr=(rank[b.d]||0)-(rank[a.d]||0); if(rr)return rr;
+     const roi=(b.rs.roi??-999)-(a.rs.roi??-999);if(roi)return roi;
+   }
+   return b.s-a.s;
+ });
+ return a;
 }
-function targetStats(x){
- const dr=n(divRate.value,223),tr=n(targetRoi.value,10)/100,divRef=x.value/dr;
- return{
-  maxBuy:(divRef*dr)/(1+tr),
-  minSell:(x.value*(1+tr))/dr
- };
+function queueRows(all){
+ return [...all].filter(x=>!x.rs.entered).sort((a,b)=>b.s-a.s).slice(0,Math.max(1,n(queueSize.value,15)));
 }
-function gradeClass(g){return g==="A"?"gradeA":g==="B"?"gradeB":g==="C"?"gradeC":"gradeD"}
 function render(){
- const min=n(minValue.value),max=n(maxValue.value,1e99),mv=n(minVol.value),mc=n(maxChange.value,1e99),lim=n(limit.value,80),minP=n(minProfit100.value);
- let a=items.filter(x=>x.value>=min&&x.value<=max&&x.vol>=mv&&Math.abs(x.change)<=mc)
-  .filter(x=>!excludeBase.checked||!isBaseCurrency(x))
-  .filter(x=>!watchOnly.checked||watch[keyFor(x)])
-  .map(x=>{
-    const ss=scanScore(x),rs=realStats(x),ts=targetStats(x),g=gradeFor(x,ss);
-    return{...x,ss,rs,ts,g};
-  })
-  .filter(x=>!onlyEntered.checked||x.rs.entered)
-  .filter(x=>!gradeAOnly.checked||x.g==="A"||x.g==="B")
-  .filter(x=>!x.rs.entered||x.rs.p100>=minP);
- if(sortRealRoi.checked)a.sort((a,b)=>(b.rs.roi??-1e9)-(a.rs.roi??-1e9)||b.ss-a.ss);
- else a.sort((a,b)=>b.ss-a.ss);
- a=a.slice(0,lim);
- count.textContent=a.length+" items";rows.innerHTML="";
- const dr=n(divRate.value,223);
- a.forEach(x=>{
-  const dv=x.divine||x.value/dr,tr=document.createElement("tr"),cc=x.change>0?"up":x.change<0?"down":"";
-  const rc=!x.rs.entered?"":x.rs.roi>=10?"roi-good":x.rs.roi>=3?"roi-mid":"roi-bad";
-  const k=keyFor(x),star=watch[k]?"on":"";
-  tr.innerHTML=`<td><div class="name"><span class="star ${star}" data-star="${esc(k)}">★</span>${x.icon?`<img src="${esc(x.icon)}" onerror="this.style.display='none'">`:""}<span>${esc(x.name)}</span></div></td>
-  <td>${esc(x.type)}</td><td>${fmt(x.value)}</td><td>${dv.toFixed(3)}</td><td>${fmt(x.vol)}</td>
-  <td class="${cc}">${x.change>=0?"+":""}${x.change.toFixed(1)}%</td>
-  <td><span class="grade ${gradeClass(x.g)}">${x.g}</span></td><td class="score">${x.ss.toFixed(1)}</td>
-  <td>${x.ts.maxBuy.toFixed(1)}c</td><td>${x.ts.minSell.toFixed(3)}D</td>
+ const all=buildRows(),queue=queueRows(all),qkeys=new Set(queue.map(keyFor));
+ let a=all;
+ if(queueOnly.checked)a=a.filter(x=>qkeys.has(keyFor(x)));
+ if(enteredOnly.checked)a=a.filter(x=>x.rs.entered);
+ if(watchOnly.checked)a=a.filter(x=>watch[keyFor(x)]);
+ if(profitableOnly.checked)a=a.filter(x=>x.rs.entered&&x.rs.roi>0);
+ count.textContent=`${a.length} items`;rows.innerHTML="";
+ a.slice(0,120).forEach(x=>{
+  const tr=document.createElement("tr"),cc=x.change>0?"up":x.change<0?"down":"",k=keyFor(x),star=watch[k]?"on":"",rc=x.rs.entered?(x.rs.roi>=10?"roi-good":x.rs.roi>0?"roi-mid":"roi-bad"):"";
+  tr.innerHTML=`<td><div class="name"><span class="star ${star}">★</span>${x.icon?`<img src="${esc(x.icon)}" onerror="this.style.display='none'">`:""}<span>${esc(x.name)}</span></div></td>
+  <td>${esc(x.type)}</td><td>${fmt(x.value)}</td><td>${fmt(x.vol)}</td><td class="${cc}">${x.change>=0?"+":""}${x.change.toFixed(1)}%</td>
+  <td><span class="grade ${x.g==="A"?"gradeA":x.g==="B"?"gradeB":x.g==="C"?"gradeC":"gradeD"}">${x.g}</span></td><td class="roi-good">${x.s.toFixed(1)}</td>
   <td><input class="row-input" type="number" step=".01" value="${x.rs.buy||""}" data-k="${esc(k)}" data-f="buy"></td>
   <td><input class="row-input" type="number" step=".001" value="${x.rs.sell||""}" data-k="${esc(k)}" data-f="sell"></td>
   <td class="${rc}">${x.rs.entered?x.rs.profit.toFixed(1)+"c":"—"}</td><td class="${rc}">${x.rs.entered?x.rs.roi.toFixed(1)+"%":"—"}</td>
-  <td class="${rc}">${x.rs.entered?fmt(x.rs.p100)+"c":"—"}</td><td><button class="sec mini">Analyze</button></td>`;
+  <td><span class="badge ${badgeClass(x.d)}">${x.d}</span></td>
+  <td class="${rc}">${x.rs.entered?x.rs.profitPerDiv.toFixed(2)+"c/D":"—"}</td><td><button class="sec mini">Analyze</button></td>`;
   tr.querySelectorAll("input.row-input").forEach(inp=>inp.addEventListener("change",saveRowInput));
-  tr.querySelector(".star").onclick=e=>toggleWatch(k,e.currentTarget);
-  tr.querySelector("button").onclick=()=>selectItem(x,dv);
+  tr.querySelector(".star").onclick=()=>toggleWatch(k);
+  tr.querySelector("button").onclick=()=>selectItem(x);
   rows.appendChild(tr);
  });
- updateSummary();renderWatch();
+ renderQueue(queue);renderSummary(all);updateSelectedProjection();
+}
+function renderQueue(queue){
+ if(!queue.length){checkQueue.innerHTML=`<div class="small">Không có item phù hợp.</div>`;return}
+ checkQueue.innerHTML=queue.map((x,i)=>`<div class="qrow" data-k="${esc(keyFor(x))}">
+ <div class="qtop"><b>${i+1}. ${esc(x.name)}</b><span class="grade ${x.g==="A"?"gradeA":x.g==="B"?"gradeB":x.g==="C"?"gradeC":"gradeD"}">${x.g}</span></div>
+ <div class="qmeta">Score ${x.s.toFixed(1)} · ${fmt(x.value)}c · Liq ${fmt(x.vol)} · 7d ${x.change>=0?"+":""}${x.change.toFixed(1)}%</div></div>`).join("");
+ checkQueue.querySelectorAll(".qrow").forEach(el=>el.onclick=()=>{const x=items.find(z=>keyFor(z)===el.dataset.k);if(x)selectItem({...x,s:score(x),rs:realStats(x),d:decision(realStats(x))})});
 }
 function saveRowInput(e){
  const k=e.target.dataset.k,f=e.target.dataset.f;faustus[k]=faustus[k]||{};faustus[k][f]=n(e.target.value)||"";
  localStorage.setItem("poeFaustusPrices",JSON.stringify(faustus));render();
 }
-function toggleWatch(k,el){
- if(watch[k])delete watch[k];else watch[k]=true;localStorage.setItem("poeWatchlist",JSON.stringify(watch));
- render();
-}
+function toggleWatch(k){if(watch[k])delete watch[k];else watch[k]=true;localStorage.setItem("poeWatchlist",JSON.stringify(watch));render()}
 function clearFaustus(){if(confirm("Xóa toàn bộ giá Faustus đã nhập?")){faustus={};localStorage.removeItem("poeFaustusPrices");render()}}
-function selectItem(x,dv){
+function selectItem(x){
  selectedKey=keyFor(x);const rs=realStats(x);qName.value=x.name;qBuy.value=rs.buy||"";qSell.value=rs.sell||"";
- aName.value=x.name;buyC.value=rs.buy||x.value.toFixed(2);sellD.value=rs.sell||dv.toFixed(3);
- updateQuick();
+ updateQuick();updateSelectedProjection();
 }
 function saveQuick(){
- if(!selectedKey)return;
- faustus[selectedKey]=faustus[selectedKey]||{};faustus[selectedKey].buy=n(qBuy.value)||"";faustus[selectedKey].sell=n(qSell.value)||"";
+ if(!selectedKey)return;faustus[selectedKey]=faustus[selectedKey]||{};faustus[selectedKey].buy=n(qBuy.value)||"";faustus[selectedKey].sell=n(qSell.value)||"";
  localStorage.setItem("poeFaustusPrices",JSON.stringify(faustus));render();updateQuick();
 }
 function updateQuick(){
  if(!selectedKey){qResult.textContent="Chưa chọn item.";return}
  const x=items.find(z=>keyFor(z)===selectedKey);if(!x)return;
- const rs=realStats(x);
+ const rs=realStats(x),d=decision(rs);
  if(!rs.entered){qResult.innerHTML=`<span class="orange">Nhập đủ Buy và Sell.</span>`;return}
- qResult.innerHTML=`<b>${esc(x.name)}</b> — Profit <span class="${rs.profit>=0?"ok":"bad"}"><b>${rs.profit.toFixed(2)}c/item</b></span>, ROI <b>${rs.roi.toFixed(2)}%</b>, 100 item = <b>${fmt(rs.p100)}c</b>`;
+ qResult.innerHTML=`<b>${esc(x.name)}</b><br><span class="badge ${badgeClass(d)}">${d}</span> · Profit <b>${rs.profit.toFixed(2)}c/item</b> · ROI <b>${rs.roi.toFixed(2)}%</b> · ${rs.profitPerDiv.toFixed(2)}c profit / 1D vốn`;
 }
-function updateSummary(){
- const arr=items.map(x=>({x,rs:realStats(x)})).filter(z=>z.rs.entered).sort((a,b)=>b.rs.roi-a.rs.roi);
- kEntered.textContent=arr.length;kDiv.textContent=n(divRate.value).toFixed(2)+"c";
- if(!arr.length){kBestRoi.textContent="—";kBestProfit.textContent="—";bestList.textContent="Chưa có giá Faustus.";return}
- kBestRoi.textContent=arr[0].rs.roi.toFixed(1)+"%";
- const bp=[...arr].sort((a,b)=>b.rs.p100-a.rs.p100);kBestProfit.textContent=fmt(bp[0].rs.p100)+"c";
- bestList.innerHTML=arr.slice(0,5).map((z,i)=>`${i+1}. <b>${esc(z.x.name)}</b> — ${z.rs.roi.toFixed(1)}%, ${z.rs.profit.toFixed(1)}c/item`).join("<br>");
+function renderSummary(all){
+ const entered=all.filter(x=>x.rs.entered),buy=entered.filter(x=>x.d==="BUY NOW"),good=entered.filter(x=>x.d==="GOOD");
+ kBuyNow.textContent=buy.length;kGood.textContent=good.length;kDiv.textContent=n(divRate.value).toFixed(2)+"c";
+ if(!entered.length){kBestRoi.textContent="—";bestList.textContent="Chưa có giá Faustus.";return}
+ entered.sort((a,b)=>b.rs.roi-a.rs.roi);kBestRoi.textContent=entered[0].rs.roi.toFixed(1)+"%";
+ bestList.innerHTML=entered.slice(0,5).map((x,i)=>`${i+1}. <b>${esc(x.name)}</b> — <span class="badge ${badgeClass(x.d)}">${x.d}</span> ${x.rs.roi.toFixed(1)}%, ${x.rs.profit.toFixed(1)}c/item`).join("<br>");
 }
-function renderWatch(){
- const keys=Object.keys(watch);if(!keys.length){watchQueue.innerHTML=`<div class="small">Chưa có item.</div>`;return}
- const lookup=new Map(items.map(x=>[keyFor(x),x]));
- watchQueue.innerHTML=keys.map(k=>{
-   const x=lookup.get(k),name=x?.name||k.split("::").slice(1).join("::"),rs=x?realStats(x):null;
-   return `<div data-k="${esc(k)}"><b>${esc(name)}</b>${rs?.entered?` — <span class="${rs.roi>=0?"ok":"bad"}">${rs.roi.toFixed(1)}%</span>`:""}</div>`;
- }).join("");
- watchQueue.querySelectorAll("div[data-k]").forEach(el=>el.onclick=()=>{
-   const x=lookup.get(el.dataset.k);if(x)selectItem(x,x.value/n(divRate.value,223));
- });
-}
-function calcCapital(){
- const b=n(buyC.value),s=n(sellD.value),r=n(arbRate.value),cap=n(capitalD.value);if(!b||!s||!r||!cap)return;
- const capitalC=cap*r,qty=Math.floor(capitalC/b),sellC=s*r,profitPer=sellC-b,total=qty*profitPer,roi=profitPer/b*100;
- arb.innerHTML=`<div class="big">${qty.toLocaleString()} item</div><div>Vốn: <b>${cap.toFixed(2)}D = ${capitalC.toFixed(0)}c</b></div>
- <div>Profit/item: <b class="${profitPer>=0?"ok":"bad"}">${profitPer.toFixed(2)}c (${roi.toFixed(2)}%)</b></div>
- <div>Tổng profit lý thuyết: <b class="${total>=0?"ok":"bad"}">${total.toFixed(0)}c ≈ ${(total/r).toFixed(2)}D</b></div>`;
+function updateSelectedProjection(){
+ if(!selectedKey){p100.textContent=p500.textContent=p1000.textContent="—";capMeta.textContent="Chưa chọn item.";return}
+ const x=items.find(z=>keyFor(z)===selectedKey);if(!x)return;
+ const rs=realStats(x),dr=n(divRate.value,223);if(!rs.entered){p100.textContent=p500.textContent=p1000.textContent="—";capMeta.textContent="Nhập giá Faustus trước.";return}
+ function project(capD){const capC=capD*dr,qty=Math.floor(capC/rs.buy),profit=qty*rs.profit;return{qty,profit,profitD:profit/dr}}
+ const a=project(100),b=project(500),c=project(1000);
+ p100.textContent=`+${a.profitD.toFixed(1)}D`;p500.textContent=`+${b.profitD.toFixed(1)}D`;p1000.textContent=`+${c.profitD.toFixed(1)}D`;
+ capMeta.innerHTML=`<b>${esc(x.name)}</b><br>100D mua ~${a.qty} item · 500D ~${b.qty} · 1000D ~${c.qty}. <span class="small">Chưa tính giới hạn stock/order depth.</span>`;
 }
 function ratioCalc(){
  const t=n(ratio.value),md=Math.max(1,n(maxDen.value,100));let a=[];
  for(let d=1;d<=md;d++){const ideal=t*d;for(let z=Math.max(1,Math.floor(ideal)-2);z<=Math.ceil(ideal)+2;z++){const r=z/d;if(Number(r.toFixed(2))===Number(t.toFixed(2)))a.push({z,d,r,sum:z+d,err:Math.abs(r-t)})}}
- a.sort((x,y)=>x.sum-y.sum||x.err-y.err);const b=a[0];
- ratioOut.innerHTML=b?`<div class="big">${b.z} : ${b.d}</div><div class="small">${b.z}/${b.d} = ${b.r.toFixed(6)} → ${b.r.toFixed(2)}</div>`:`<span class="bad">Không tìm thấy.</span>`;
+ a.sort((x,y)=>x.sum-y.sum||x.err-y.err);const b=a[0];ratioOut.innerHTML=b?`<div class="big">${b.z} : ${b.d}</div><div class="small">${b.z}/${b.d} = ${b.r.toFixed(6)} → ${b.r.toFixed(2)}</div>`:`<span class="bad">Không tìm thấy.</span>`;
 }
 function exportCsv(){
- const dr=n(divRate.value,223);
- const header=["Item","Category","ValueChaos","Liquidity","7dChange","ScanScore","Grade","FaustusBuyChaos","FaustusSellDivine","ProfitChaos","ROI","Profit100Chaos"];
+ const header=["Item","Category","ValueChaos","Liquidity","7d","ScanScore","Grade","BuyChaos","SellDivine","ProfitChaos","ROI","Decision","ProfitPerDivCapital"];
  const lines=[header.join(",")];
- items.forEach(x=>{
-  if(excludeBase.checked&&isBaseCurrency(x))return;
-  const ss=scanScore(x),g=gradeFor(x,ss),rs=realStats(x);
-  const vals=[x.name,x.type,x.value,x.vol,x.change,ss.toFixed(2),g,rs.buy||"",rs.sell||"",rs.entered?rs.profit.toFixed(2):"",rs.entered?rs.roi.toFixed(2):"",rs.entered?rs.p100.toFixed(2):""];
+ buildRows().forEach(x=>{
+  const vals=[x.name,x.type,x.value,x.vol,x.change,x.s.toFixed(2),x.g,x.rs.buy||"",x.rs.sell||"",x.rs.entered?x.rs.profit.toFixed(2):"",x.rs.entered?x.rs.roi.toFixed(2):"",x.d,x.rs.entered?x.rs.profitPerDiv.toFixed(2):""];
   lines.push(vals.map(v=>`"${String(v).replaceAll('"','""')}"`).join(","));
  });
- const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8"});
- const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`poe-allflame-flips-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(a.href);
+ const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");
+ a.href=URL.createObjectURL(blob);a.download=`poe-allflame-v4-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(a.href);
 }
 function toggleAuto(){if(autoTimer){clearInterval(autoTimer);autoTimer=null;autoTxt.textContent="OFF";return}autoTimer=setInterval(scanAll,5*60*1000);autoTxt.textContent="5 MIN";scanAll()}
 init();
