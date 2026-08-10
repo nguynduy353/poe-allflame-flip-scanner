@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v5.6</title>
+<title>PoE Allflame Flip Scanner v5.7</title>
 <style>
 :root{
   --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
@@ -63,15 +63,15 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 .decisionPriority{background:#123e2d;color:#66e5a8}.decisionConsider{background:#4a391b;color:#f4cc70}.decisionSkip{background:#482326;color:#ff8b8b}
 
 
-.topTools{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px;align-items:start}
+.topTools{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:12px;align-items:start}
 .ratioCompact{margin-bottom:0}.ratioMini{display:grid;grid-template-columns:1fr 1fr;gap:7px}
 @media(max-width:1100px){.topTools{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v5.6</h1>
-<div class="sub">V5.6 Clean: bỏ Trade Tracker và Decision Summary, tập trung vào <b>Closed Loop Profit</b> + <b>Net D/1M Gold</b>. Ratio Calculator được đưa lên cạnh bộ lọc.</div>
+<h1>PoE Allflame Flip Scanner v5.7</h1>
+<div class="sub">V5.7: bỏ Trade Tracker và Decision Summary, tập trung vào <b>Closed Loop Profit</b> + <b>Net D/1M Gold</b>. Ratio Calculator được đưa lên cạnh bộ lọc.</div>
 
 <div class="card">
   <label>Cloudflare Worker URL</label>
@@ -135,7 +135,12 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
   <div><label>Ratio</label><input id="ratio" type="number" value="4.17" step=".01"></div>
   <div><label>Max HAVE</label><input id="maxDen" type="number" value="100"></div>
  </div>
- <button style="margin-top:8px" onclick="ratioCalc()">TÌM</button>
+ <button style="margin-top:8px" onclick="ratioCalc()">TÌM CẶP GẦN NHẤT</button>
+ <div class="ratioMini" style="margin-top:10px">
+  <div><label>Số lượng Item</label><input id="fixedItemQty" type="number" min="1" step="1" placeholder="6"></div>
+  <div><label>Cặp Ratio</label><input id="fixedRatioPreview" readonly placeholder="25 : 6"></div>
+ </div>
+ <button class="sec" style="margin-top:8px" onclick="ratioByItemQty()">TÍNH THEO ITEM</button>
  <hr><div id="ratioOut"></div>
 </div></div>
 
@@ -311,7 +316,15 @@ function init(){
  .forEach(id=>document.getElementById(id).addEventListener("input",()=>items.length&&render()));
  [buyChaosPerItemInput,buyItemQty,buyPlus,sellDivQty,sellItemQty,sellMinus,buyGoldFee,sellGoldFee].forEach(el=>el.addEventListener("input",previewQuick));
  [buyChaosPerItemInput,buyItemQty,sellDivQty,sellItemQty,buyGoldFee,sellGoldFee].forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter")saveQuick()}));
- ratioCalc(); if(saved&&!saved.includes("YOUR-WORKER"))health();
+ ratioCalc();
+ const fq=document.getElementById("fixedItemQty");
+ if(fq){
+   fq.addEventListener("input",ratioByItemQty);
+   fq.addEventListener("keydown",e=>{if(e.key==="Enter")ratioByItemQty()});
+ }
+ const rr=document.getElementById("ratio");
+ if(rr)rr.addEventListener("input",()=>{if(document.getElementById("fixedItemQty")?.value)ratioByItemQty()});
+ if(saved&&!saved.includes("YOUR-WORKER"))health();
 }
 function saveWorker(){localStorage.setItem("poeWorkerUrl",workerBase());setStatus(`<span class="ok">✓ Đã lưu Worker URL.</span>`);health()}
 async function api(path,timeoutMs=20000){
@@ -589,6 +602,25 @@ function exportCsv(){
  });
  const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`poe-allflame-v5-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(a.href);
 }
+
+function ratioByItemQty(){
+ const r=n(document.getElementById("ratio")?.value);
+ const qty=Math.max(0,Math.floor(n(document.getElementById("fixedItemQty")?.value)));
+ const preview=document.getElementById("fixedRatioPreview");
+ if(!r||!qty){
+   if(preview)preview.value="";
+   return;
+ }
+ const currency=Math.max(1,Math.round(r*qty));
+ const actual=currency/qty;
+ if(preview)preview.value=`${currency} : ${qty}`;
+ const out=document.getElementById("ratioOut");
+ if(out){
+   out.innerHTML=`<div class="big">${currency} : ${qty}</div>
+   <div class="small">${currency}/${qty} = ${actual.toFixed(6)} → ${actual.toFixed(2)} · target ${r.toFixed(2)} · lệch ${(actual-r>=0?"+":"")}${(actual-r).toFixed(4)}</div>`;
+ }
+}
+
 function toggleAuto(){if(autoTimer){clearInterval(autoTimer);autoTimer=null;autoTxt.textContent="OFF";return}autoTimer=setInterval(scanAll,5*60*1000);autoTxt.textContent="5 MIN";scanAll()}
 init();
 </script>
