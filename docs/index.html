@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v5.7</title>
+<title>PoE Allflame Flip Scanner v5.8.1</title>
 <style>
 :root{
   --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
@@ -66,12 +66,19 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 .topTools{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:12px;align-items:start}
 .ratioCompact{margin-bottom:0}.ratioMini{display:grid;grid-template-columns:1fr 1fr;gap:7px}
 @media(max-width:1100px){.topTools{grid-template-columns:1fr}}
+
+tr.crossed td{opacity:.45;text-decoration:line-through}
+tr.crossed td:last-child{text-decoration:none;opacity:1}
+button.crossBtn{background:#3b2b2d;border-color:#694247}
+button.crossBtn.active{background:#62363a;border-color:#9a555d}
+.turnoverNote{color:#a9c7d8;font-size:12px;margin-top:6px}
+
 </style>
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v5.7</h1>
-<div class="sub">V5.7: bỏ Trade Tracker và Decision Summary, tập trung vào <b>Closed Loop Profit</b> + <b>Net D/1M Gold</b>. Ratio Calculator được đưa lên cạnh bộ lọc.</div>
+<h1>PoE Allflame Flip Scanner v5.8.1</h1>
+<div class="sub">V5.8.1: giữ <b>Turnover First</b> + nút Gạch, đồng thời lọc các tên item giả/legacy không nên xuất hiện trong danh sách Faustus.</div>
 
 <div class="card">
   <label>Cloudflare Worker URL</label>
@@ -118,7 +125,9 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
    <label><input id="enteredOnly" type="checkbox"> Chỉ item đã nhập Faustus</label>
    <label><input id="watchOnly" type="checkbox"> Chỉ Watchlist</label>
    <label><input id="profitableOnly" type="checkbox"> Chỉ ROI dương</label>
+   <label><input id="hideCrossed" type="checkbox"> Ẩn item đã gạch</label>
  </div>
+ <div class="turnoverNote">V5.8.1 mặc định xếp hạng theo <b>Liquidity/Volume trước</b>, sau đó mới xét Net D/1M Gold và Net Profit. <b>Sandswept Lifeforce</b> và các tên bị blacklist sẽ không còn xuất hiện.</div>
 
  <div class="actions" style="margin-top:11px">
    <button id="scanBtn" onclick="scanAll()">QUÉT THỊ TRƯỜNG</button>
@@ -152,13 +161,13 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
  <div class="tablewrap"><table><thead><tr>
    <th>★ / Item</th><th>Liq.</th><th>Buy c/item</th><th>Sell D/item</th><th>Net Profit D</th><th>Net D/1M Gold</th><th>Decision</th><th></th>
  </tr></thead><tbody id="rows"></tbody></table></div>
- <div class="small" style="margin-top:7px">Bảng xếp theo Net D/1M Gold trước, sau đó Net Profit D và Liquidity. Không còn Trade Tracker hay dữ liệu thời gian.</div>
+ <div class="small" style="margin-top:7px">Bảng xếp theo Liquidity/Volume trước để ưu tiên đơn dễ quay vòng; sau đó mới xét Net D/1M Gold và Net Profit D. Nút Gạch chỉ đánh dấu item và được lưu trong trình duyệt.</div>
 </div>
 
 <div class="side">
 <div class="card">
  <b>Faustus Check Queue</b>
- <p class="small">Click item để nhập ratio nhanh.</p>
+ <p class="small">Queue ưu tiên item có Liquidity/Volume lớn. Click item để nhập ratio nhanh.</p>
  <div id="checkQueue" class="queue"><div class="small">Hãy quét thị trường.</div></div>
 </div>
 
@@ -236,6 +245,7 @@ if(!Object.keys(faustus).length){
   if(Object.keys(faustus).length)localStorage.setItem("poeFaustusRatiosV52",JSON.stringify(faustus));
 }
 let watch=JSON.parse(localStorage.getItem("poeWatchlist")||"{}");
+let crossed=JSON.parse(localStorage.getItem("poeCrossedItemsV58")||"{}");
 
 
 
@@ -276,6 +286,18 @@ const LEGACY_NAME_MAP = new Map([
   ["Exalted Shard","Exalted Shard"],
 ]);
 
+const BLOCKED_ITEM_NAMES = new Set([
+  "Sandswept Lifeforce",
+  "sandswept-lifeforce",
+]);
+
+function isBlockedItemName(name){
+  const s=String(name||"").trim();
+  if(!s)return true;
+  return BLOCKED_ITEM_NAMES.has(s) || BLOCKED_ITEM_NAMES.has(s.toLowerCase());
+}
+
+
 // Những tên này không nên xuất hiện như candidate riêng ở Faustus hiện tại.
 // Ta remap legacy name sang tên hiện hành, sau đó dedupe theo category + canonical name.
 function canonicalName(raw){
@@ -286,13 +308,13 @@ function canonicalName(raw){
 function dedupeItems(arr){
   const m=new Map();
   for(const x of arr){
+    if(isBlockedItemName(x.name))continue;
     const k=`${x.type}::${x.name}`;
     const prev=m.get(k);
     if(!prev){
       m.set(k,x);
       continue;
     }
-    // Giữ entry có liquidity lớn hơn; nếu bằng nhau thì giữ entry có value > 0 ổn định hơn.
     if(n(x.vol)>n(prev.vol) || (n(x.vol)===n(prev.vol) && n(x.value)>n(prev.value))){
       m.set(k,x);
     }
@@ -312,7 +334,7 @@ function init(){
  const c=window.POE_FLIP_CONFIG||{},saved=localStorage.getItem("poeWorkerUrl");
  workerUrl.value=saved||c.workerUrl||"";
  [...EX,...ST].forEach(([id,label])=>{const l=document.createElement("label");l.innerHTML=`<input type="checkbox" value="${id}" ${DEFAULT.has(id)?"checked":""}> ${label}`;cats.appendChild(l)});
- ["minValue","maxValue","minVol","maxChange","queueSize","divRate","targetRoi","buyNowRoi","goldBenchmarkD","goodGoldD","buyNowGoldD","goldBudget","recycleChaosPerDiv","recycleGoldFee","recycleMode","closedLoopMinDPerM","excludeBase","queueOnly","enteredOnly","watchOnly","profitableOnly"]
+ ["minValue","maxValue","minVol","maxChange","queueSize","divRate","targetRoi","buyNowRoi","goldBenchmarkD","goodGoldD","buyNowGoldD","goldBudget","recycleChaosPerDiv","recycleGoldFee","recycleMode","closedLoopMinDPerM","excludeBase","queueOnly","enteredOnly","watchOnly","profitableOnly","hideCrossed"]
  .forEach(id=>document.getElementById(id).addEventListener("input",()=>items.length&&render()));
  [buyChaosPerItemInput,buyItemQty,buyPlus,sellDivQty,sellItemQty,sellMinus,buyGoldFee,sellGoldFee].forEach(el=>el.addEventListener("input",previewQuick));
  [buyChaosPerItemInput,buyItemQty,sellDivQty,sellItemQty,buyGoldFee,sellGoldFee].forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter")saveQuick()}));
@@ -496,20 +518,36 @@ function decision(rs){
  return"BỎ QUA";
 }
 function badgeClass(d){return simpleDecisionClass(d)}
+
+function isCrossedKey(k){return !!crossed[k]}
+function toggleCrossed(k){
+ if(crossed[k]) delete crossed[k];
+ else crossed[k]=true;
+ localStorage.setItem("poeCrossedItemsV58",JSON.stringify(crossed));
+ render();
+}
+
 function buildRows(){
- let a=items.filter(x=>x.value>=n(minValue.value)&&x.value<=n(maxValue.value,1e99)&&x.vol>=n(minVol.value)&&Math.abs(x.change)<=n(maxChange.value,1e99))
+ let a=items.filter(x=>!isBlockedItemName(x.name)).filter(x=>x.value>=n(minValue.value)&&x.value<=n(maxValue.value,1e99)&&x.vol>=n(minVol.value)&&Math.abs(x.change)<=n(maxChange.value,1e99))
  .filter(x=>!excludeBase.checked||!isBaseCurrency(x))
  .map(x=>{const s=score(x),rs=realStats(x);return{...x,s,g:grade(x,s),rs,d:decision(rs)}});
  a.sort((a,b)=>{
+   // Turnover-first: ưu tiên item có volume/liquidity lớn để order có khả năng quay nhanh hơn.
+   if(b.vol!==a.vol)return b.vol-a.vol;
    const ag=a.rs.netPer1MGold??-1,bg=b.rs.netPer1MGold??-1;
    if(bg!==ag)return bg-ag;
    const an=a.rs.netProfitDiv??-1,bn=b.rs.netProfitDiv??-1;
    if(bn!==an)return bn-an;
-   return b.vol-a.vol;
+   return b.s-a.s;
  });
  return a;
 }
-function queueRows(all){return[...all].filter(x=>!x.rs.entered).sort((a,b)=>b.s-a.s).slice(0,Math.max(1,n(queueSize.value,15)))}
+function queueRows(all){
+ return[...all]
+   .filter(x=>!x.rs.entered && !isCrossedKey(keyFor(x)))
+   .sort((a,b)=>b.vol-a.vol || b.s-a.s)
+   .slice(0,Math.max(1,n(queueSize.value,15)))
+}
 function render(){
  const all=buildRows(),queue=queueRows(all),qkeys=new Set(queue.map(keyFor));
  let a=all;
@@ -517,18 +555,23 @@ function render(){
  if(enteredOnly.checked)a=a.filter(x=>x.rs.entered);
  if(watchOnly.checked)a=a.filter(x=>watch[keyFor(x)]);
  if(profitableOnly.checked)a=a.filter(x=>x.rs.entered&&x.rs.roi>0);
+ if(hideCrossed.checked)a=a.filter(x=>!isCrossedKey(keyFor(x)));
  count.textContent=`${a.length} items`;rows.innerHTML="";
  a.slice(0,120).forEach(x=>{
   const tr=document.createElement("tr"),cc=x.change>0?"up":x.change<0?"down":"",k=keyFor(x),star=watch[k]?"on":"",rc=x.rs.entered?(x.rs.roi>=10?"roi-good":x.rs.roi>0?"roi-mid":"roi-bad"):"";
-  const sd=simpleDecision(x);
+  const sd=simpleDecision(x),isX=isCrossedKey(k);
+  if(isX)tr.classList.add("crossed");
   tr.innerHTML=`<td><div class="name"><span class="star ${star}">★</span>${x.icon?`<img src="${esc(x.icon)}" onerror="this.style.display='none'">`:""}<span>${esc(x.name)}</span></div></td>
   <td>${fmt(x.vol)}</td>
   <td>${x.rs.entered?x.rs.buy.toFixed(2)+"c":"—"}</td><td>${x.rs.entered?x.rs.sell.toFixed(4)+"D":"—"}</td>
   <td class="${x.rs.entered&&x.rs.netProfitDiv>=0?"roi-good":"roi-bad"}">${x.rs.entered?x.rs.netProfitDiv.toFixed(2)+"D":"—"}</td>
   <td class="${x.rs.netPer1MGold!=null?(x.rs.netPer1MGold>=n(buyNowGoldD.value,7)?"roi-good":x.rs.netPer1MGold>=n(goodGoldD.value,5)?"roi-mid":"roi-bad"):""}">${x.rs.netPer1MGold!=null?x.rs.netPer1MGold.toFixed(2)+"D":"—"}</td>
   <td><span class="badge ${simpleDecisionClass(sd)}">${sd}</span></td>
-  <td><button class="sec mini">Analyze</button></td>`;
-  tr.querySelector(".star").onclick=()=>toggleWatch(k);tr.querySelector("button").onclick=()=>selectItem(x);rows.appendChild(tr);
+  <td><button class="sec mini analyzeBtn">Analyze</button> <button class="mini crossBtn ${isX?"active":""}">${isX?"Bỏ gạch":"Gạch"}</button></td>`;
+  tr.querySelector(".star").onclick=()=>toggleWatch(k);
+  tr.querySelector(".analyzeBtn").onclick=()=>selectItem(x);
+  tr.querySelector(".crossBtn").onclick=()=>toggleCrossed(k);
+  rows.appendChild(tr);
  });
  renderQueue(queue);updateSelectedProjection();
 }
