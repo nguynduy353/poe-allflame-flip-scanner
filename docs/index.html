@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v5.5</title>
+<title>PoE Allflame Flip Scanner v5.6</title>
 <style>
 :root{
   --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
@@ -62,12 +62,16 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 .histrow{padding:7px 8px;border-bottom:1px solid #293640;font-size:12px}
 .decisionPriority{background:#123e2d;color:#66e5a8}.decisionConsider{background:#4a391b;color:#f4cc70}.decisionSkip{background:#482326;color:#ff8b8b}
 
+
+.topTools{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px;align-items:start}
+.ratioCompact{margin-bottom:0}.ratioMini{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+@media(max-width:1100px){.topTools{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v5.5</h1>
-<div class="sub">V5.5 thêm <b>Trade Tracker</b> để đo thời gian BUY → SELL → hoàn tất và tính <b>Real D/hour</b>. Trạng thái được rút gọn để dễ nhìn.</div>
+<h1>PoE Allflame Flip Scanner v5.6</h1>
+<div class="sub">V5.6 Clean: bỏ Trade Tracker và Decision Summary, tập trung vào <b>Closed Loop Profit</b> + <b>Net D/1M Gold</b>. Ratio Calculator được đưa lên cạnh bộ lọc.</div>
 
 <div class="card">
   <label>Cloudflare Worker URL</label>
@@ -77,7 +81,7 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
   </div>
 </div>
 
-<div class="card">
+<div class="topTools"><div><div class="card">
  <div class="grid">
   <div><label>League</label><select id="league"><option value="Allflame">Allflame</option></select></div>
   <div><label>Min value c</label><input id="minValue" type="number" value="20"></div>
@@ -125,7 +129,15 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
  </div>
  <div id="status" class="status">Sẵn sàng. V5.5 Closed Loop: Decision ưu tiên Net D/1M Gold → Net Profit D → Liquidity. ROI chỉ còn là chỉ số tham khảo.</div>
  <div class="small" style="margin-top:7px">V5.2: BUY nhập Chaos/item + số lượng → tự tính tổng Chaos. Đồng thời vẫn remap legacy name như <b>Maven's Orb → Orb of Dominance</b> và gộp các entry trùng tên trước khi xếp hạng.</div>
-</div>
+</div></div><div class="card ratioCompact">
+ <b>PoE Ratio Calculator</b><span class="small" style="margin-left:8px">4.17 → 25:6</span>
+ <div class="ratioMini" style="margin-top:8px">
+  <div><label>Ratio</label><input id="ratio" type="number" value="4.17" step=".01"></div>
+  <div><label>Max HAVE</label><input id="maxDen" type="number" value="100"></div>
+ </div>
+ <button style="margin-top:8px" onclick="ratioCalc()">TÌM</button>
+ <hr><div id="ratioOut"></div>
+</div></div>
 
 <div class="main">
 <div class="card">
@@ -133,12 +145,9 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
    <b>Ứng viên flip</b><span id="count" class="small">0 items</span>
  </div>
  <div class="tablewrap"><table><thead><tr>
-   <th>★ / Item</th><th>Liq.</th>
-   <th>Buy c/item</th><th>Sell D/item</th>
-   <th>Net Profit D</th><th>Net D/1M Gold</th>
-   <th>Avg Cycle</th><th>Real D/h</th><th>Decision</th><th></th>
+   <th>★ / Item</th><th>Liq.</th><th>Buy c/item</th><th>Sell D/item</th><th>Net Profit D</th><th>Net D/1M Gold</th><th>Decision</th><th></th>
  </tr></thead><tbody id="rows"></tbody></table></div>
- <div class="small" style="margin-top:7px">Bảng tính vòng khép kín: mua bằng Chaos → bán lấy Divine → đổi đủ Divine về Chaos để hồi vốn. Decision V5.5 ưu tiên Net D/1M Gold trước, sau đó Net Profit D và Liquidity. ROI chỉ hiển thị để tham khảo.</div>
+ <div class="small" style="margin-top:7px">Bảng xếp theo Net D/1M Gold trước, sau đó Net Profit D và Liquidity. Không còn Trade Tracker hay dữ liệu thời gian.</div>
 </div>
 
 <div class="side">
@@ -179,16 +188,7 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
  <div id="qResult" class="status">Chưa chọn item.</div>
 </div>
 
-<div class="card">
- <b>Decision Summary</b>
- <div class="kpis">
-   <div class="kpi"><span class="small">ƯU TIÊN</span><b id="kBuyNow">0</b></div>
-   <div class="kpi"><span class="small">CÂN NHẮC</span><b id="kGood">0</b></div>
-   <div class="kpi"><span class="small">Best Net Profit</span><b id="kBestRoi">—</b></div>
-   <div class="kpi"><span class="small">Best D / 1M Gold</span><b id="kBestGold">—</b></div>
- </div>
- <div id="bestList" class="small">Chưa có giá Faustus.</div>
-</div>
+
 
 <div class="card">
  <b>Capital Projection</b>
@@ -201,37 +201,9 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 </div>
 
 
-<div class="card">
- <b>Trade Tracker</b>
- <p class="small">Chỉ 3 bước: <b>MUA → BÁN → XONG</b>. Timer được lưu trong trình duyệt.</p>
- <label>Item đang theo dõi</label><input id="trackName" readonly>
- <div style="margin-top:8px"><span id="trackState" class="trackerState">CHƯA BẮT ĐẦU</span></div>
- <div id="trackTimer" class="timer">00:00:00</div>
- <div id="trackHint" class="small">Chọn item bằng Analyze.</div>
- <div class="trackerBtns">
-   <button id="trackMainBtn" onclick="advanceTrade()">BẮT ĐẦU MUA</button>
-   <button class="sec" onclick="resetTrade()">RESET</button>
- </div>
- <hr>
- <div class="kpis">
-   <div class="kpi"><span class="small">Avg BUY</span><b id="avgBuy">—</b></div>
-   <div class="kpi"><span class="small">Avg SELL</span><b id="avgSell">—</b></div>
-   <div class="kpi"><span class="small">Avg Cycle</span><b id="avgCycle">—</b></div>
-   <div class="kpi"><span class="small">Real D/hour</span><b id="realDph">—</b></div>
- </div>
- <div class="small">Completed cycles: <b id="cycleCount">0</b></div>
- <div id="tradeHistory" class="hist" style="margin-top:8px"><div class="histrow">Chưa có lịch sử.</div></div>
-</div>
 
-<div class="card">
- <b>PoE Ratio Calculator</b>
- <div class="compact" style="margin-top:8px">
-  <div><label>Ratio</label><input id="ratio" type="number" value="4.17" step=".01"></div>
-  <div><label>Max HAVE</label><input id="maxDen" type="number" value="100"></div>
- </div>
- <button style="margin-top:8px" onclick="ratioCalc()">TÌM CẶP SỐ</button>
- <hr><div id="ratioOut"></div>
-</div>
+
+
 </div>
 </div>
 </div>
@@ -260,9 +232,6 @@ if(!Object.keys(faustus).length){
 }
 let watch=JSON.parse(localStorage.getItem("poeWatchlist")||"{}");
 
-let tradeJournal=JSON.parse(localStorage.getItem("poeTradeJournalV55")||"{}");
-let activeTrades=JSON.parse(localStorage.getItem("poeActiveTradesV55")||"{}");
-let trackerInterval=null;
 
 
 function n(v,d=0){v=Number(v);return Number.isFinite(v)?v:d}
@@ -326,115 +295,14 @@ function dedupeItems(arr){
   return [...m.values()];
 }
 
-function fmtTime(sec){
- sec=Math.max(0,Math.round(n(sec)));
- const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;
- return [h,m,s].map(v=>String(v).padStart(2,"0")).join(":");
-}
-function tradeStatsForKey(k){
- const arr=tradeJournal[k]||[];
- if(!arr.length)return{count:0,avgBuy:null,avgSell:null,avgCycle:null,realDph:null,totalNet:0,totalHours:0};
- const sum=(field)=>arr.reduce((a,r)=>a+n(r[field]),0);
- const buy=sum("buySec"),sell=sum("sellSec"),cycle=sum("cycleSec"),net=sum("netProfitD");
- const hours=cycle/3600;
- return{
-   count:arr.length,
-   avgBuy:buy/arr.length,
-   avgSell:sell/arr.length,
-   avgCycle:cycle/arr.length,
-   realDph:hours>0?net/hours:null,
-   totalNet:net,totalHours:hours
- };
-}
 function simpleDecision(x){
- const rs=x.rs,ts=tradeStatsForKey(keyFor(x));
+ const rs=x.rs;
  if(!rs.entered || rs.netProfitDiv==null || rs.netProfitDiv<=0)return"—";
- const minGold=n(goodGoldD.value,5),priorityGold=n(buyNowGoldD.value,7);
- const minNet=n(targetRoi.value,.25),priorityNet=n(buyNowRoi.value,1);
- // If real turnover data exists, use it as the strongest signal.
- if(ts.realDph!=null){
-   if(ts.realDph>=20 && rs.netPer1MGold>=priorityGold && rs.netProfitDiv>=priorityNet)return"ƯU TIÊN";
-   if(ts.realDph>=8 && rs.netPer1MGold>=minGold && rs.netProfitDiv>=minNet)return"CÂN NHẮC";
-   return"BỎ QUA";
- }
- // Before turnover data exists, fall back to closed-loop economics.
- if(rs.netPer1MGold>=priorityGold && rs.netProfitDiv>=priorityNet)return"ƯU TIÊN";
- if(rs.netPer1MGold>=minGold && rs.netProfitDiv>=minNet)return"CÂN NHẮC";
+ if(rs.netPer1MGold>=n(buyNowGoldD.value,7) && rs.netProfitDiv>=n(buyNowRoi.value,1))return"ƯU TIÊN";
+ if(rs.netPer1MGold>=n(goodGoldD.value,5) && rs.netProfitDiv>=n(targetRoi.value,.25))return"CÂN NHẮC";
  return"BỎ QUA";
 }
 function simpleDecisionClass(d){return d==="ƯU TIÊN"?"decisionPriority":d==="CÂN NHẮC"?"decisionConsider":d==="BỎ QUA"?"decisionSkip":"unknown"}
-function getActiveTrade(k){return activeTrades[k]||null}
-function saveActive(){localStorage.setItem("poeActiveTradesV55",JSON.stringify(activeTrades))}
-function saveJournal(){localStorage.setItem("poeTradeJournalV55",JSON.stringify(tradeJournal))}
-function updateTracker(){
- const nameEl=document.getElementById("trackName"),stateEl=document.getElementById("trackState"),timerEl=document.getElementById("trackTimer"),
- btn=document.getElementById("trackMainBtn"),hint=document.getElementById("trackHint");
- if(!nameEl||!stateEl||!timerEl||!btn)return;
- if(!selectedKey){
-   nameEl.value="";stateEl.textContent="CHƯA BẮT ĐẦU";stateEl.className="trackerState";timerEl.textContent="00:00:00";btn.textContent="BẮT ĐẦU MUA";btn.disabled=true;
-   hint.textContent="Chọn item bằng Analyze.";renderTradeStats(null);return;
- }
- btn.disabled=false;
- const x=items.find(z=>keyFor(z)===selectedKey);
- nameEl.value=x?.name||selectedKey;
- const a=getActiveTrade(selectedKey),now=Date.now();
- if(!a){
-   stateEl.textContent="CHƯA BẮT ĐẦU";stateEl.className="trackerState";timerEl.textContent="00:00:00";btn.textContent="BẮT ĐẦU MUA";hint.textContent="Bấm khi bạn vừa đặt BUY order.";
- }else if(a.stage==="buy"){
-   stateEl.textContent="MUA";stateEl.className="trackerState stateBuy";timerEl.textContent=fmtTime((now-a.buyStart)/1000);btn.textContent="MUA XONG → BÁN";hint.textContent="Bấm khi BUY đã fill đủ và bạn bắt đầu đặt SELL.";
- }else if(a.stage==="sell"){
-   stateEl.textContent="BÁN";stateEl.className="trackerState stateSell";timerEl.textContent=fmtTime((now-a.sellStart)/1000);btn.textContent="HOÀN TẤT";hint.textContent="Bấm khi SELL đã fill xong.";
- }
- renderTradeStats(selectedKey);
-}
-function renderTradeStats(k){
- const ids=["avgBuy","avgSell","avgCycle","realDph","cycleCount","tradeHistory"];
- if(ids.some(id=>!document.getElementById(id)))return;
- if(!k){
-   avgBuy.textContent=avgSell.textContent=avgCycle.textContent=realDph.textContent="—";cycleCount.textContent="0";tradeHistory.innerHTML='<div class="histrow">Chưa có lịch sử.</div>';return;
- }
- const st=tradeStatsForKey(k),arr=tradeJournal[k]||[];
- avgBuy.textContent=st.avgBuy!=null?fmtTime(st.avgBuy):"—";
- avgSell.textContent=st.avgSell!=null?fmtTime(st.avgSell):"—";
- avgCycle.textContent=st.avgCycle!=null?fmtTime(st.avgCycle):"—";
- realDph.textContent=st.realDph!=null?st.realDph.toFixed(1)+"D/h":"—";
- cycleCount.textContent=st.count;
- tradeHistory.innerHTML=arr.length?[...arr].reverse().slice(0,8).map((r,i)=>`<div class="histrow">Cycle ${arr.length-i}: ${fmtTime(r.cycleSec)} · Net ${n(r.netProfitD).toFixed(2)}D · ${r.cycleSec>0?(n(r.netProfitD)/(r.cycleSec/3600)).toFixed(1):"—"}D/h</div>`).join(""):'<div class="histrow">Chưa có lịch sử.</div>';
-}
-function advanceTrade(){
- if(!selectedKey)return;
- const now=Date.now(),a=getActiveTrade(selectedKey);
- if(!a){
-   activeTrades[selectedKey]={stage:"buy",buyStart:now};saveActive();updateTracker();return;
- }
- if(a.stage==="buy"){
-   a.buyEnd=now;a.sellStart=now;a.stage="sell";saveActive();updateTracker();return;
- }
- if(a.stage==="sell"){
-   a.sellEnd=now;
-   const x=items.find(z=>keyFor(z)===selectedKey),rs=x?realStats(x):null;
-   const rec={
-     buyStart:a.buyStart,buyEnd:a.buyEnd,sellStart:a.sellStart,sellEnd:a.sellEnd,
-     buySec:(a.buyEnd-a.buyStart)/1000,
-     sellSec:(a.sellEnd-a.sellStart)/1000,
-     cycleSec:(a.sellEnd-a.buyStart)/1000,
-     netProfitD:rs?.netProfitDiv??0,
-     closedLoopGold:rs?.closedLoopGold??0,
-     qty:rs?.qty??0,
-     completedAt:now
-   };
-   tradeJournal[selectedKey]=tradeJournal[selectedKey]||[];
-   tradeJournal[selectedKey].push(rec);saveJournal();
-   delete activeTrades[selectedKey];saveActive();
-   updateTracker();render();
- }
-}
-function resetTrade(){
- if(!selectedKey)return;
- if(getActiveTrade(selectedKey) && !confirm("Reset timer của item này?"))return;
- delete activeTrades[selectedKey];saveActive();updateTracker();
-}
-
 function init(){
  const c=window.POE_FLIP_CONFIG||{},saved=localStorage.getItem("poeWorkerUrl");
  workerUrl.value=saved||c.workerUrl||"";
@@ -443,7 +311,7 @@ function init(){
  .forEach(id=>document.getElementById(id).addEventListener("input",()=>items.length&&render()));
  [buyChaosPerItemInput,buyItemQty,buyPlus,sellDivQty,sellItemQty,sellMinus,buyGoldFee,sellGoldFee].forEach(el=>el.addEventListener("input",previewQuick));
  [buyChaosPerItemInput,buyItemQty,sellDivQty,sellItemQty,buyGoldFee,sellGoldFee].forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter")saveQuick()}));
- ratioCalc(); trackerInterval=setInterval(updateTracker,1000); updateTracker(); if(saved&&!saved.includes("YOUR-WORKER"))health();
+ ratioCalc(); if(saved&&!saved.includes("YOUR-WORKER"))health();
 }
 function saveWorker(){localStorage.setItem("poeWorkerUrl",workerBase());setStatus(`<span class="ok">✓ Đã lưu Worker URL.</span>`);health()}
 async function api(path,timeoutMs=20000){
@@ -620,11 +488,6 @@ function buildRows(){
  .filter(x=>!excludeBase.checked||!isBaseCurrency(x))
  .map(x=>{const s=score(x),rs=realStats(x);return{...x,s,g:grade(x,s),rs,d:decision(rs)}});
  a.sort((a,b)=>{
-   const ta=tradeStatsForKey(keyFor(a)),tb=tradeStatsForKey(keyFor(b));
-   const ad=ta.realDph??-1,bd=tb.realDph??-1;
-   if(ad>=0 || bd>=0){
-     if(bd!==ad)return bd-ad;
-   }
    const ag=a.rs.netPer1MGold??-1,bg=b.rs.netPer1MGold??-1;
    if(bg!==ag)return bg-ag;
    const an=a.rs.netProfitDiv??-1,bn=b.rs.netProfitDiv??-1;
@@ -644,19 +507,17 @@ function render(){
  count.textContent=`${a.length} items`;rows.innerHTML="";
  a.slice(0,120).forEach(x=>{
   const tr=document.createElement("tr"),cc=x.change>0?"up":x.change<0?"down":"",k=keyFor(x),star=watch[k]?"on":"",rc=x.rs.entered?(x.rs.roi>=10?"roi-good":x.rs.roi>0?"roi-mid":"roi-bad"):"";
-  const ts=tradeStatsForKey(k),sd=simpleDecision(x);
+  const sd=simpleDecision(x);
   tr.innerHTML=`<td><div class="name"><span class="star ${star}">★</span>${x.icon?`<img src="${esc(x.icon)}" onerror="this.style.display='none'">`:""}<span>${esc(x.name)}</span></div></td>
   <td>${fmt(x.vol)}</td>
   <td>${x.rs.entered?x.rs.buy.toFixed(2)+"c":"—"}</td><td>${x.rs.entered?x.rs.sell.toFixed(4)+"D":"—"}</td>
   <td class="${x.rs.entered&&x.rs.netProfitDiv>=0?"roi-good":"roi-bad"}">${x.rs.entered?x.rs.netProfitDiv.toFixed(2)+"D":"—"}</td>
   <td class="${x.rs.netPer1MGold!=null?(x.rs.netPer1MGold>=n(buyNowGoldD.value,7)?"roi-good":x.rs.netPer1MGold>=n(goodGoldD.value,5)?"roi-mid":"roi-bad"):""}">${x.rs.netPer1MGold!=null?x.rs.netPer1MGold.toFixed(2)+"D":"—"}</td>
-  <td>${ts.avgCycle!=null?fmtTime(ts.avgCycle):"—"}</td>
-  <td class="${ts.realDph!=null?(ts.realDph>=20?"roi-good":ts.realDph>=8?"roi-mid":"roi-bad"):""}">${ts.realDph!=null?ts.realDph.toFixed(1)+"D/h":"—"}</td>
   <td><span class="badge ${simpleDecisionClass(sd)}">${sd}</span></td>
   <td><button class="sec mini">Analyze</button></td>`;
   tr.querySelector(".star").onclick=()=>toggleWatch(k);tr.querySelector("button").onclick=()=>selectItem(x);rows.appendChild(tr);
  });
- renderQueue(queue);renderSummary(all);updateSelectedProjection();
+ renderQueue(queue);updateSelectedProjection();
 }
 function renderQueue(queue){
  if(!queue.length){checkQueue.innerHTML=`<div class="small">Không có item phù hợp.</div>`;return}
@@ -672,7 +533,7 @@ function selectItem(x){
  buyItemQty.value=f.buyItem||"";buyPlus.value=f.buyPlus||"0";
  sellDivQty.value=f.sellDiv||"";sellItemQty.value=f.sellItem||"";sellMinus.value=f.sellMinus||"0";
  buyGoldFee.value=f.buyGold||"";sellGoldFee.value=f.sellGold||"";
- previewQuick();updateSelectedProjection();updateTracker();
+ previewQuick();updateSelectedProjection();
 }
 function clearQuick(){selectedKey=null;qName.value="";buyChaosPerItemInput.value=buyItemQty.value=sellDivQty.value=sellItemQty.value=buyGoldFee.value=sellGoldFee.value="";buyPlus.value=sellMinus.value="0";buyChaosTotal.value=sellPerItem.value="";qResult.textContent="Chưa chọn item."}
 function previewQuick(){
@@ -702,26 +563,6 @@ function saveQuick(){
   buyGold:n(buyGoldFee.value)||0,sellGold:n(sellGoldFee.value)||0
  };
  localStorage.setItem("poeFaustusRatiosV52",JSON.stringify(faustus));render();previewQuick();
-}
-function renderSummary(all){
- const entered=all.filter(x=>x.rs.entered);
- const priority=entered.filter(x=>simpleDecision(x)==="ƯU TIÊN");
- const consider=entered.filter(x=>simpleDecision(x)==="CÂN NHẮC");
- kBuyNow.textContent=priority.length;kGood.textContent=consider.length;
- if(!entered.length){kBestRoi.textContent="—";kBestGold.textContent="—";bestList.textContent="Chưa có giá Faustus.";return}
- const byNet=[...entered].sort((a,b)=>(b.rs.netProfitDiv??-1)-(a.rs.netProfitDiv??-1));
- kBestRoi.textContent=(byNet[0].rs.netProfitDiv??0).toFixed(2)+"D";
- const goldRows=entered.filter(x=>x.rs.netPer1MGold!=null).sort((a,b)=>b.rs.netPer1MGold-a.rs.netPer1MGold);
- kBestGold.textContent=goldRows.length?goldRows[0].rs.netPer1MGold.toFixed(2)+"D":"—";
- const ranked=[...entered].sort((a,b)=>{
-   const ta=tradeStatsForKey(keyFor(a)),tb=tradeStatsForKey(keyFor(b));
-   if((tb.realDph??-1)!==(ta.realDph??-1))return (tb.realDph??-1)-(ta.realDph??-1);
-   return (b.rs.netPer1MGold??-1)-(a.rs.netPer1MGold??-1);
- });
- bestList.innerHTML=ranked.slice(0,5).map((x,i)=>{
-   const ts=tradeStatsForKey(keyFor(x)),d=simpleDecision(x);
-   return `${i+1}. <b>${esc(x.name)}</b> — <span class="badge ${simpleDecisionClass(d)}">${d}</span> Net ${x.rs.netProfitDiv.toFixed(2)}D · ${x.rs.netPer1MGold!=null?x.rs.netPer1MGold.toFixed(1)+"D/1M Gold":"—"}${ts.realDph!=null?` · <b>${ts.realDph.toFixed(1)}D/h</b>`:""}`;
- }).join("<br>");
 }
 function updateSelectedProjection(){
  if(!selectedKey){p100.textContent=p500.textContent=p1000.textContent="—";capMeta.textContent="Chưa chọn item.";return}
