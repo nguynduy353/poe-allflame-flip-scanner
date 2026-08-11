@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v5.8.6</title>
+<title>PoE Allflame Flip Scanner v5.8.7</title>
 <style>
 :root{
   --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
@@ -90,8 +90,8 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v5.8.6</h1>
-<div class="sub">V5.8.6: <b>Capital Fit</b> giờ tham gia trực tiếp vào danh sách ứng viên. Ranking: <b>Turnover/Liquidity → Capital Fit → Net D/1M Gold → Net Profit</b>.</div>
+<h1>PoE Allflame Flip Scanner v5.8.7</h1>
+<div class="sub">V5.8.7: thay <b>Qty Fit</b> bằng <b>Recommended Batch</b>. Scanner không còn đề xuất dùng hết ngân sách cho một item; batch được giới hạn theo vốn + Liquidity/Volume để ưu tiên fill nhanh và quay vốn liên tục.</div>
 
 <div class="card">
   <label>Cloudflare Worker URL</label>
@@ -137,6 +137,18 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 <label>Giữ vốn recycle %<input id="capitalReservePct" type="number" min="0" max="80" step="5" value="20"></label>
 </div>
 <div id="capitalSummary" class="capitalSummary">Nhập vốn Divine để scanner chọn các món phù hợp.</div>
+
+<div class="capitalRow">
+  <label>Batch % của Liquidity/Hour
+    <input id="batchVolPct" type="number" min="0.001" max="5" step="0.01" value="0.05">
+  </label>
+  <label>Max Recommended Qty
+    <input id="maxRecQty" type="number" min="1" step="1" value="200">
+  </label>
+  <label>Min Recommended Capital (D)
+    <input id="minRecCapital" type="number" min="0" step="0.5" value="2">
+  </label>
+</div>
 <div id="cats" class="checks" style="margin-top:11px"></div>
  <div class="checks" style="margin-top:9px">
    <label><input id="excludeBase" type="checkbox" checked> Loại Divine/Chaos/Mirror</label>
@@ -184,9 +196,9 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
    <b>Ứng viên flip</b><span id="count" class="small">0 items</span>
  </div>
  <div class="tablewrap"><table><thead><tr>
-   <th>★ / Item</th><th>Liq.</th><th>Qty Fit</th><th>Capital Used</th><th>Buy c/item</th><th>Sell D/item</th><th>Net Profit D</th><th>Net D/1M Gold</th><th>Decision</th><th></th>
+   <th>★ / Item</th><th>Liq.</th><th>Rec. Qty</th><th>Rec. Capital</th><th>Buy c/item</th><th>Sell D/item</th><th>Net Profit D</th><th>Net D/1M Gold</th><th>Decision</th><th></th>
  </tr></thead><tbody id="rows"></tbody></table></div>
- <div class="small" style="margin-top:7px">Bảng xếp theo Liquidity/Volume trước, sau đó Capital Fit, Net D/1M Gold và Net Profit D. Qty Fit/Capital Used cho biết batch phù hợp với vốn hiện tại.</div>
+ <div class="small" style="margin-top:7px">Bảng xếp theo Liquidity/Volume trước, sau đó Recommended Batch Fit, Net D/1M Gold và Net Profit D. Rec. Qty/Rec. Capital là batch nhỏ gợi ý để quay vòng nhanh; rê chuột vào để xem mức tối đa theo vốn.</div>
 </div>
 
 <div class="side">
@@ -399,7 +411,7 @@ function init(){
  [buyDivPerItemInput,buyItemQtyDC,buyDivPlus,sellChaosPerItemInput,sellItemQtyDC,sellChaosMinus,buyGoldFeeDC,sellGoldFeeDC].forEach(el=>el.addEventListener("input",()=>{previewReverse();updateDualCompare()}));
  [buyChaosPerItemInput,buyItemQty,sellDivQty,sellItemQty,buyGoldFee,sellGoldFee].forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter")saveQuick()}));
  ratioCalc(); updateDraftInfo();
-["capitalDiv","capitalUsePct","capitalReservePct"].forEach(id=>{
+["capitalDiv","capitalUsePct","capitalReservePct","batchVolPct","maxRecQty","minRecCapital"].forEach(id=>{
  const e=document.getElementById(id),v=localStorage.getItem("poe_"+id);
  if(v!==null)e.value=v;
  e.addEventListener("change",()=>{localStorage.setItem("poe_"+id,e.value);render();});
@@ -604,7 +616,7 @@ function buildRows(){
  a.sort((a,b)=>{
    // 1) turnover/liquidity remains primary
    if(b.vol!==a.vol)return b.vol-a.vol;
-   // 2) then Capital Fit score
+   // 2) then Recommended Batch Fit score
    const ca=capitalFit(a),cb=capitalFit(b);
    if(cb.score!==ca.score)return cb.score-ca.score;
    // 3) then gold efficiency
@@ -634,31 +646,58 @@ function capCfg(){
  const use=Math.min(100,Math.max(5,+document.getElementById("capitalUsePct").value||25));
  const reserve=Math.min(80,Math.max(0,+document.getElementById("capitalReservePct").value||20));
  const rate=Math.max(1,+document.getElementById("divRate").value||1);
- return {capital,use,reserve,rate,usable:capital*(1-reserve/100),per:capital*use/100};
+ const batchVolPct=Math.max(0.001,+document.getElementById("batchVolPct")?.value||0.05);
+ const maxRecQty=Math.max(1,Math.floor(+document.getElementById("maxRecQty")?.value||200));
+ const minRecCapital=Math.max(0,+document.getElementById("minRecCapital")?.value||2);
+ return {capital,use,reserve,rate,batchVolPct,maxRecQty,minRecCapital,usable:capital*(1-reserve/100),per:capital*use/100};
 }
 function capitalFit(x){
  const c=capCfg();
- // Prefer live poe.ninja valuation fields; fallback to scanner normalized value.
  const chaos=Number(x.chaosValue ?? x.chaosEquivalent ?? x.value ?? 0);
  const unitD=c.rate>0?chaos/c.rate:0;
+ const vol=Math.max(0,Number(x.vol ?? x.volume ?? x.liquidity ?? 0));
  if(!c.capital || !unitD || unitD<=0){
-   return {ok:true,qty:0,cost:0,unitD,score:0,label:"—"};
+   return {ok:true,qty:0,cost:0,unitD,maxQty:0,maxCost:0,recQty:0,recCost:0,score:0,label:"—"};
  }
+
+ // Absolute maximum allowed by user's capital policy.
  const budget=Math.max(0,Math.min(c.usable,c.per));
- const qty=Math.floor(budget/unitD);
- const cost=qty*unitD;
- if(qty<1)return {ok:false,qty:0,cost:0,unitD,score:-999,label:"VƯỢT VỐN"};
- // Capital score rewards being able to deploy a useful chunk without concentrating excessively.
- const deployRatio=budget>0?Math.min(1,cost/budget):0;
- const qtyScore=Math.min(1,qty/10);
- const score=deployRatio*70+qtyScore*30;
- const label=score>=80?"TỐT":score>=50?"OK":"THẤP";
- return {ok:true,qty,cost,unitD,score,label};
+ const maxQty=Math.floor(budget/unitD);
+ const maxCost=maxQty*unitD;
+ if(maxQty<1){
+   return {ok:false,qty:0,cost:0,unitD,maxQty:0,maxCost:0,recQty:0,recCost:0,score:-999,label:"VƯỢT VỐN"};
+ }
+
+ // Recommended batch is intentionally smaller:
+ // a tiny fraction of poe.ninja hourly liquidity, capped by user max qty and capital-fit qty.
+ const liquidityQty = vol>0 ? Math.max(1,Math.floor(vol*(c.batchVolPct/100))) : 1;
+ let recQty=Math.max(1,Math.min(maxQty,c.maxRecQty,liquidityQty));
+ let recCost=recQty*unitD;
+
+ // If recommended batch is too tiny in capital terms, scale upward when liquidity/capital allow it.
+ if(recCost<c.minRecCapital && unitD>0){
+   const minQty=Math.ceil(c.minRecCapital/unitD);
+   recQty=Math.min(maxQty,c.maxRecQty,Math.max(recQty,minQty));
+   recCost=recQty*unitD;
+ }
+
+ // Recommended Batch Fit score now rewards a small, repeatable batch rather than spending full budget.
+ const budgetShare=budget>0?Math.min(1,recCost/budget):0;
+ const turnoverScore=vol>0?Math.min(1,Math.log10(vol+1)/6):0;
+ const diversificationScore=1-Math.min(1,budgetShare);
+ const score=turnoverScore*55 + diversificationScore*30 + Math.min(1,recQty/20)*15;
+ const label=score>=70?"NHANH":score>=50?"ỔN":"NHỎ";
+
+ return {
+   ok:true,qty:recQty,cost:recCost,unitD,
+   maxQty,maxCost,recQty,recCost,
+   liquidityQty,score,label
+ };
 }
 function updateCapitalSummary(){
  const e=document.getElementById("capitalSummary"); if(!e)return;
  const c=capCfg();
- e.innerHTML=c.capital?`Vốn <b>${c.capital.toFixed(1)}D</b> · dự phòng recycle <b>${c.reserve}%</b> · vốn hoạt động <b>${c.usable.toFixed(1)}D</b> · tối đa/món <b>${Math.min(c.usable,c.per).toFixed(1)}D</b>. Ranking: Turnover/Liquidity → Capital Fit → Net D/1M Gold → Net Profit. Món không mua nổi ít nhất 1 item sẽ bị loại.`:"Nhập vốn Divine để scanner chọn các món phù hợp.";
+ e.innerHTML=c.capital?`Vốn <b>${c.capital.toFixed(1)}D</b> · dự phòng recycle <b>${c.reserve}%</b> · vốn hoạt động <b>${c.usable.toFixed(1)}D</b> · trần/món <b>${Math.min(c.usable,c.per).toFixed(1)}D</b> · batch target <b>${c.batchVolPct}% Liquidity/h</b>. Ranking: Turnover/Liquidity → Recommended Batch Fit → Net D/1M Gold → Net Profit. Recommended Batch dùng một phần nhỏ Liquidity/Hour và không mặc định dùng hết vốn.`:"Nhập vốn Divine để scanner chọn các món phù hợp.";
 }
 
 function render(){ updateCapitalSummary();
@@ -676,8 +715,8 @@ function render(){ updateCapitalSummary();
   if(isX)tr.classList.add("crossed");
   tr.innerHTML=`<td><div class="name"><span class="star ${star}">★</span>${x.icon?`<img src="${esc(x.icon)}" onerror="this.style.display='none'">`:""}<span>${esc(x.name)}</span></div></td>
   <td>${fmt(x.vol)}</td>
-  <td class="${cf.qty>=10?"roi-good":cf.qty>=3?"roi-mid":"roi-bad"}">${cf.qty||"—"}</td>
-  <td>${cf.cost?cf.cost.toFixed(1)+"D":"—"}</td>
+  <td class="${cf.recQty>=10?"roi-good":cf.recQty>=3?"roi-mid":"roi-bad"}" title="Max theo vốn: ${cf.maxQty||0} item">${cf.recQty||"—"}</td>
+  <td title="Max capital theo policy: ${cf.maxCost?cf.maxCost.toFixed(1):0}D">${cf.recCost?cf.recCost.toFixed(1)+"D":"—"}</td>
   <td>${x.rs.entered?x.rs.buy.toFixed(2)+"c":"—"}</td><td>${x.rs.entered?x.rs.sell.toFixed(4)+"D":"—"}</td>
   <td class="${x.rs.entered&&x.rs.netProfitDiv>=0?"roi-good":"roi-bad"}">${x.rs.entered?x.rs.netProfitDiv.toFixed(2)+"D":"—"}</td>
   <td class="${x.rs.netPer1MGold!=null?(x.rs.netPer1MGold>=n(buyNowGoldD.value,7)?"roi-good":x.rs.netPer1MGold>=n(goodGoldD.value,5)?"roi-mid":"roi-bad"):""}">${x.rs.netPer1MGold!=null?x.rs.netPer1MGold.toFixed(2)+"D":"—"}</td>
