@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v5.8.1</title>
+<title>PoE Allflame Flip Scanner v5.8.2</title>
 <style>
 :root{
   --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
@@ -77,7 +77,7 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v5.8.1</h1>
+<h1>PoE Allflame Flip Scanner v5.8.2</h1>
 <div class="sub">V5.8.1: giữ <b>Turnover First</b> + nút Gạch, đồng thời lọc các tên item giả/legacy không nên xuất hiện trong danh sách Faustus.</div>
 
 <div class="card">
@@ -204,6 +204,7 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 
 
 
+<div class="card"><b>Dual Direction Calculator</b><p class="small">So sánh C → Item → D với D → Item → C.</p><div class="grid"><div><label>C→Item c/item</label><input id="dcBuyC" type="number" step=".01"></div><div><label>Item→D D/item</label><input id="dcSellD" type="number" step=".0001"></div><div><label>D→Item D/item</label><input id="ddBuyD" type="number" step=".0001"></div><div><label>Item→C c/item</label><input id="ddSellC" type="number" step=".01"></div><div><label>Quantity</label><input id="dualQty" type="number" value="100"></div><div><label>D→C recycle</label><input id="dualD2C" type="number" value="220"></div><div><label>C→D recycle</label><input id="dualC2D" type="number" value="220"></div></div><button style="margin-top:8px" onclick="calcDualDirection()">SO SÁNH 2 CHIỀU</button><div id="dualOut" style="margin-top:10px"></div></div>
 <div class="card">
  <b>Capital Projection</b>
  <div class="capgrid">
@@ -222,7 +223,7 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 </div>
 </div>
 
-<script src="config.js"></script>
+<script src="config.js">function calcDualDirection(){const q=Math.max(1,Math.floor(n(dualQty.value,1))),bc=n(dcBuyC.value),sd=n(dcSellD.value),bd=n(ddBuyD.value),sc=n(ddSellC.value),d2c=n(dualD2C.value,220),c2d=n(dualC2D.value,220);let a=null,b=null;if(bc>0&&sd>0){let cap=bc*q,net=sd*q-cap/d2c;a={net,roi:net*d2c/cap*100}}if(bd>0&&sc>0){let cap=bd*q,nc=sc*q-cap*c2d;b={net:nc/c2d,nc,roi:(nc/c2d)/cap*100}}if(!a&&!b){dualOut.innerHTML="Nhập giá của ít nhất một chiều.";return}let best=(a?.net??-Infinity)>=(b?.net??-Infinity)?"C → ITEM → D":"D → ITEM → C";dualOut.innerHTML=`<div class="kpis"><div class="kpi"><span class="small">C→Item→D</span><b>${a?a.net.toFixed(2)+"D":"—"}</b><span class="small">${a?a.roi.toFixed(1)+"%":""}</span></div><div class="kpi"><span class="small">D→Item→C</span><b>${b?b.net.toFixed(2)+"D":"—"}</b><span class="small">${b?b.nc.toFixed(0)+"c · "+b.roi.toFixed(1)+"%":""}</span></div></div><div style="margin-top:8px"><span class="badge decisionPriority">BEST: ${best}</span></div><div class="small">Closed-loop profit trước Gold fee.</div>`;}</script>
 <script>
 const EX=[
  ["Currency","Currency"],["Scarab","Scarabs"],["Astrolabe","Astrolabes"],["AllflameEmber","Allflame Embers"],
