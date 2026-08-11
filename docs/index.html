@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v5.8.8</title>
+<title>PoE Allflame Flip Scanner v5.8.9</title>
 <style>
 :root{
   --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
@@ -92,8 +92,8 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v5.8.8</h1>
-<div class="sub">V5.8.8 Market Rate Fix: <b>1 Divine = Chaos</b> được lấy tự động từ chính dòng <b>Divine Orb</b> trong dữ liệu Currency của poe.ninja sau mỗi lần quét. Không còn dùng giá mặc định cũ để tính valuation/Capital Fit.</div>
+<h1>PoE Allflame Flip Scanner v5.8.9</h1>
+<div class="sub">V5.8.9: sửa lỗi <b>Rec. Qty / Rec. Capital</b> bị “—”. Nguyên nhân là exchange item có <code>chaosValue = 0</code> làm chặn fallback sang valuation đã normalize.</div>
 
 <div class="card">
   <label>Cloudflare Worker URL</label>
@@ -204,7 +204,7 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
  <div class="tablewrap"><table><thead><tr>
    <th>★ / Item</th><th>Liq.</th><th>Rec. Qty</th><th>Rec. Capital</th><th>Buy c/item</th><th>Sell D/item</th><th>Net Profit D</th><th>Net D/1M Gold</th><th>Decision</th><th></th>
  </tr></thead><tbody id="rows"></tbody></table></div>
- <div class="small" style="margin-top:7px">Bảng xếp theo Liquidity/Volume trước, sau đó Recommended Batch Fit, Net D/1M Gold và Net Profit D. Rec. Qty/Rec. Capital là batch nhỏ gợi ý để quay vòng nhanh; rê chuột vào để xem mức tối đa theo vốn.</div>
+ <div class="small" style="margin-top:7px">Bảng xếp theo Liquidity/Volume trước, sau đó Recommended Batch Fit, Net D/1M Gold và Net Profit D. V5.8.9 sửa Rec. Qty/Rec. Capital để dùng valuation dương hợp lệ thay vì bị kẹt ở chaosValue=0.</div>
 </div>
 
 <div class="side">
@@ -490,7 +490,9 @@ function normalizeExchange(wrapper,type){
   const rawName=m.name||m.text||x.name||x.currencyTypeName||String(x.id);
   return{
     name:canonicalName(rawName),icon:m.icon||x.icon||"",
-    value,chaosValue,primaryValue,vol,change:ch,type,kind:"exchange"
+    value,
+    ...(chaosValue>0?{chaosValue}:{}),
+    primaryValue,vol,change:ch,type,kind:"exchange"
   };
  }).filter(x=>x.value>0);
 }
@@ -702,12 +704,25 @@ function capCfg(){
  const minRecCapital=Math.max(0,+document.getElementById("minRecCapital")?.value||2);
  return {capital,use,reserve,rate,batchVolPct,maxRecQty,minRecCapital,usable:capital*(1-reserve/100),per:capital*use/100};
 }
+
+function effectiveChaosValue(x){
+ const cv=Number(x?.chaosValue);
+ if(Number.isFinite(cv) && cv>0)return cv;
+ const ce=Number(x?.chaosEquivalent);
+ if(Number.isFinite(ce) && ce>0)return ce;
+ const v=Number(x?.value);
+ if(Number.isFinite(v) && v>0)return v;
+ const pv=Number(x?.primaryValue);
+ if(Number.isFinite(pv) && pv>0)return pv;
+ return 0;
+}
+
 function capitalFit(x){
  const c=capCfg();
- const chaos=Number(x.chaosValue ?? x.chaosEquivalent ?? x.value ?? 0);
+ const chaos=effectiveChaosValue(x);
  const unitD=c.rate>0?chaos/c.rate:0;
  const vol=Math.max(0,Number(x.vol ?? x.volume ?? x.liquidity ?? 0));
- if(!c.capital || !unitD || unitD<=0){
+ if(!c.capital || c.rate<=0 || !unitD || unitD<=0){
    return {ok:true,qty:0,cost:0,unitD,maxQty:0,maxCost:0,recQty:0,recCost:0,score:0,label:"—"};
  }
 
@@ -766,8 +781,8 @@ function render(){ updateCapitalSummary();
   if(isX)tr.classList.add("crossed");
   tr.innerHTML=`<td><div class="name"><span class="star ${star}">★</span>${x.icon?`<img src="${esc(x.icon)}" onerror="this.style.display='none'">`:""}<span>${esc(x.name)}</span></div></td>
   <td>${fmt(x.vol)}</td>
-  <td class="${cf.recQty>=10?"roi-good":cf.recQty>=3?"roi-mid":"roi-bad"}" title="Max theo vốn: ${cf.maxQty||0} item">${cf.recQty||"—"}</td>
-  <td title="Max capital theo policy: ${cf.maxCost?cf.maxCost.toFixed(1):0}D">${cf.recCost?cf.recCost.toFixed(1)+"D":"—"}</td>
+  <td class="${cf.recQty>=10?"roi-good":cf.recQty>=3?"roi-mid":"roi-bad"}" title="${cf.recQty?`Max theo vốn: ${cf.maxQty||0} item · Unit ${cf.unitD.toFixed(4)}D`:`Không tính được: market rate=${capCfg().rate}, chaos value=${effectiveChaosValue(x)}`}">${cf.recQty||"—"}</td>
+  <td title="${cf.recCost?`Max capital theo policy: ${cf.maxCost.toFixed(1)}D`:`Chưa có valuation hợp lệ`}">${cf.recCost?cf.recCost.toFixed(1)+"D":"—"}</td>
   <td>${x.rs.entered?x.rs.buy.toFixed(2)+"c":"—"}</td><td>${x.rs.entered?x.rs.sell.toFixed(4)+"D":"—"}</td>
   <td class="${x.rs.entered&&x.rs.netProfitDiv>=0?"roi-good":"roi-bad"}">${x.rs.entered?x.rs.netProfitDiv.toFixed(2)+"D":"—"}</td>
   <td class="${x.rs.netPer1MGold!=null?(x.rs.netPer1MGold>=n(buyNowGoldD.value,7)?"roi-good":x.rs.netPer1MGold>=n(goodGoldD.value,5)?"roi-mid":"roi-bad"):""}">${x.rs.netPer1MGold!=null?x.rs.netPer1MGold.toFixed(2)+"D":"—"}</td>
