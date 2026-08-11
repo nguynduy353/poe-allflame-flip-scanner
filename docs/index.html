@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v5.8.3</title>
+<title>PoE Allflame Flip Scanner v5.8.4</title>
 <style>
 :root{
   --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
@@ -82,12 +82,16 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 .compareGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .bestDir{display:inline-block;margin-top:8px;padding:5px 9px;border-radius:999px;background:#123e2d;color:#66e5a8;font-weight:800}
 @media(max-width:650px){.compareGrid{grid-template-columns:1fr}}
+
+.draftBar{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+.draftBar button{width:auto}
+.draftInfo{margin-top:6px;font-size:12px;color:var(--muted)}
 </style>
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v5.8.3</h1>
-<div class="sub">V5.8.3: tích hợp so sánh hai chiều ngay trong <b>Quick Faustus</b>; bỏ calculator so sánh riêng.</div>
+<h1>PoE Allflame Flip Scanner v5.8.4</h1>
+<div class="sub">V5.8.4: thêm <b>Faustus Draft</b> để lưu snapshot các item đã nhập giá. Mỗi lần <b>QUÉT THỊ TRƯỜNG</b> sẽ tự reset giá Faustus hiện tại để bắt đầu vòng kiểm tra mới.</div>
 
 <div class="card">
   <label>Cloudflare Worker URL</label>
@@ -145,6 +149,12 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
    <button class="sec" onclick="clearFaustus()">XÓA GIÁ FAUSTUS</button>
    <button class="sec" onclick="exportCsv()">EXPORT CSV</button>
  </div>
+ <div class="draftBar">
+   <button class="sec" onclick="saveFaustusDraft()">LƯU BẢN NHÁP FAUSTUS</button>
+   <button class="sec" onclick="restoreFaustusDraft()">KHÔI PHỤC BẢN NHÁP</button>
+   <button class="sec" onclick="deleteFaustusDraft()">XÓA BẢN NHÁP</button>
+ </div>
+ <div id="draftInfo" class="draftInfo">Chưa có bản nháp.</div>
  <div id="status" class="status">Sẵn sàng. V5.5 Closed Loop: Decision ưu tiên Net D/1M Gold → Net Profit D → Liquidity. ROI chỉ còn là chỉ số tham khảo.</div>
  <div class="small" style="margin-top:7px">V5.2: BUY nhập Chaos/item + số lượng → tự tính tổng Chaos. Đồng thời vẫn remap legacy name như <b>Maven's Orb → Orb of Dominance</b> và gộp các entry trùng tên trước khi xếp hạng.</div>
 </div></div><div class="topRightTools"><div class="card ratioCompact">
@@ -181,7 +191,7 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 </div>
 
 <div class="card">
- <b>Quick Faustus Ratio Entry</b>
+ <b>Quick Faustus Ratio Entry</b><div class="small" style="margin-top:4px">Giá hiện tại sẽ bị reset khi Quét Thị Trường. Dùng LƯU BẢN NHÁP trước nếu muốn giữ lại.</div>
  <label>Item</label><input id="qName" readonly>
  <div class="dualTabs">
    <button id="tabCD" class="sec active" onclick="switchDualTab('cd')">CHAOS → ITEM → DIVINE</button>
@@ -286,6 +296,9 @@ if(!Object.keys(faustus).length){
 }
 let watch=JSON.parse(localStorage.getItem("poeWatchlist")||"{}");
 let crossed=JSON.parse(localStorage.getItem("poeCrossedItemsV58")||"{}");
+let faustusDraft=JSON.parse(localStorage.getItem("poeFaustusDraftV584")||"{}");
+let faustusDraftMeta=JSON.parse(localStorage.getItem("poeFaustusDraftMetaV584")||"{}");
+
 
 
 
@@ -379,7 +392,7 @@ function init(){
  [buyChaosPerItemInput,buyItemQty,buyPlus,sellDivQty,sellItemQty,sellMinus,buyGoldFee,sellGoldFee].forEach(el=>el.addEventListener("input",()=>{previewQuick();updateDualCompare()}));
  [buyDivPerItemInput,buyItemQtyDC,buyDivPlus,sellChaosPerItemInput,sellItemQtyDC,sellChaosMinus,buyGoldFeeDC,sellGoldFeeDC].forEach(el=>el.addEventListener("input",()=>{previewReverse();updateDualCompare()}));
  [buyChaosPerItemInput,buyItemQty,sellDivQty,sellItemQty,buyGoldFee,sellGoldFee].forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter")saveQuick()}));
- ratioCalc();
+ ratioCalc(); updateDraftInfo();
  const fq=document.getElementById("fixedItemQty");
  if(fq){
    fq.addEventListener("input",ratioByItemQty);
@@ -447,9 +460,11 @@ function normalizeStash(wrapper,type){
  divine:n(x.divineValue,0),vol:n(x.listingCount??x.count??0),change:n(x.sparkLine?.totalChange,sparkChange(x.sparkLine)),type,kind:"stash"})).filter(x=>x.value>0);
 }
 async function scanAll(){
+ // Mỗi vòng scan bắt đầu với giá Faustus trống; bản nháp riêng không bị ảnh hưởng.
+ resetCurrentFaustusForNewScan();
  const selected=[...document.querySelectorAll("#cats input:checked")].map(x=>x.value);
  if(!selected.length){setStatus(`<span class="bad">Hãy chọn ít nhất 1 category.</span>`);return}
- setBusy("scan",true,"ĐANG QUÉT...");
+ setBusy("scan",true,"ĐANG QUÉT..."); setStatus(`<span class="orange">Đã reset giá Faustus hiện tại.</span> Đang quét thị trường…`);
  items=[];
  let fails=[],done=0,cached=0,lastFetch="";
  setStatus(`Đang quét 0/${selected.length} category…`);
@@ -622,6 +637,60 @@ function renderQueue(queue){
  checkQueue.querySelectorAll(".qrow").forEach(el=>el.onclick=()=>{const x=items.find(z=>keyFor(z)===el.dataset.k);if(x)selectItem(x)});
 }
 function toggleWatch(k){if(watch[k])delete watch[k];else watch[k]=true;localStorage.setItem("poeWatchlist",JSON.stringify(watch));render()}
+
+function countEnteredFaustus(obj){
+ return Object.values(obj||{}).filter(v=>{
+   if(!v||typeof v!=="object")return false;
+   const cd=Number(v.buyUnit)>0 || Number(v.sellDiv)>0 || Number(v.buyGold)>0 || Number(v.sellGold)>0;
+   const dc=Number(v.buyDivUnit)>0 || Number(v.sellChaosUnit)>0 || Number(v.buyGoldDC)>0 || Number(v.sellGoldDC)>0;
+   return cd||dc;
+ }).length;
+}
+function updateDraftInfo(){
+ const el=document.getElementById("draftInfo");if(!el)return;
+ const count=countEnteredFaustus(faustusDraft);
+ if(!count){
+   el.textContent="Chưa có bản nháp.";
+   return;
+ }
+ const ts=faustusDraftMeta.savedAt ? new Date(faustusDraftMeta.savedAt).toLocaleString() : "";
+ el.innerHTML=`Bản nháp: <b>${count} item</b>${ts?` · lưu lúc ${esc(ts)}`:""}`;
+}
+function saveFaustusDraft(){
+ faustusDraft=JSON.parse(JSON.stringify(faustus||{}));
+ faustusDraftMeta={savedAt:Date.now(),count:countEnteredFaustus(faustusDraft)};
+ localStorage.setItem("poeFaustusDraftV584",JSON.stringify(faustusDraft));
+ localStorage.setItem("poeFaustusDraftMetaV584",JSON.stringify(faustusDraftMeta));
+ updateDraftInfo();
+ setStatus(`<span class="ok">✓ Đã lưu bản nháp ${faustusDraftMeta.count} item Faustus.</span>`);
+}
+function restoreFaustusDraft(){
+ if(!countEnteredFaustus(faustusDraft)){
+   setStatus(`<span class="orange">Không có bản nháp Faustus để khôi phục.</span>`);
+   return;
+ }
+ faustus=JSON.parse(JSON.stringify(faustusDraft));
+ localStorage.setItem("poeFaustusRatiosV52",JSON.stringify(faustus));
+ render();
+ if(selectedKey){
+   const x=items.find(z=>keyFor(z)===selectedKey);
+   if(x)selectItem(x);
+ }
+ setStatus(`<span class="ok">✓ Đã khôi phục ${countEnteredFaustus(faustus)} item từ bản nháp.</span>`);
+}
+function deleteFaustusDraft(){
+ faustusDraft={};faustusDraftMeta={};
+ localStorage.removeItem("poeFaustusDraftV584");
+ localStorage.removeItem("poeFaustusDraftMetaV584");
+ updateDraftInfo();
+ setStatus(`<span class="ok">✓ Đã xóa bản nháp Faustus.</span>`);
+}
+function resetCurrentFaustusForNewScan(){
+ faustus={};
+ localStorage.removeItem("poeFaustusRatiosV52");
+ clearQuick();
+}
+
 function clearFaustus(){if(confirm("Xóa toàn bộ ratio Faustus đã nhập?")){faustus={};localStorage.removeItem("poeFaustusRatiosV52");render();clearQuick()}}
 function selectItem(x){
  selectedKey=keyFor(x);qName.value=x.name;
