@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v5.8.4</title>
+<title>PoE Allflame Flip Scanner v5.8.5</title>
 <style>
 :root{
   --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
@@ -86,11 +86,11 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 .draftBar{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
 .draftBar button{width:auto}
 .draftInfo{margin-top:6px;font-size:12px;color:var(--muted)}
-</style>
+.capitalRow{display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:8px;margin:8px 0}.capitalSummary{margin:8px 0;padding:9px 11px;background:#0c151b;border:1px solid var(--line);border-radius:9px;font-size:12px}@media(max-width:900px){.capitalRow{grid-template-columns:1fr}}</style>
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v5.8.4</h1>
+<h1>PoE Allflame Flip Scanner v5.8.5</h1>
 <div class="sub">V5.8.4: thêm <b>Faustus Draft</b> để lưu snapshot các item đã nhập giá. Mỗi lần <b>QUÉT THỊ TRƯỜNG</b> sẽ tự reset giá Faustus hiện tại để bắt đầu vòng kiểm tra mới.</div>
 
 <div class="card">
@@ -131,7 +131,13 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
   <div><label>Closed-loop min D / 1M Gold</label><input id="closedLoopMinDPerM" type="number" value="5" step="0.1"></div>
  </div>
 
- <div id="cats" class="checks" style="margin-top:11px"></div>
+ <div class="capitalRow">
+<label>Vốn hiện có (Divine)<input id="capitalDiv" type="number" min="0" step="1" value="100"></label>
+<label>Dùng tối đa vốn / item %<input id="capitalUsePct" type="number" min="5" max="100" step="5" value="25"></label>
+<label>Giữ vốn recycle %<input id="capitalReservePct" type="number" min="0" max="80" step="5" value="20"></label>
+</div>
+<div id="capitalSummary" class="capitalSummary">Nhập vốn Divine để scanner chọn các món phù hợp.</div>
+<div id="cats" class="checks" style="margin-top:11px"></div>
  <div class="checks" style="margin-top:9px">
    <label><input id="excludeBase" type="checkbox" checked> Loại Divine/Chaos/Mirror</label>
    <label><input id="queueOnly" type="checkbox"> Chỉ Queue</label>
@@ -393,6 +399,13 @@ function init(){
  [buyDivPerItemInput,buyItemQtyDC,buyDivPlus,sellChaosPerItemInput,sellItemQtyDC,sellChaosMinus,buyGoldFeeDC,sellGoldFeeDC].forEach(el=>el.addEventListener("input",()=>{previewReverse();updateDualCompare()}));
  [buyChaosPerItemInput,buyItemQty,sellDivQty,sellItemQty,buyGoldFee,sellGoldFee].forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter")saveQuick()}));
  ratioCalc(); updateDraftInfo();
+["capitalDiv","capitalUsePct","capitalReservePct"].forEach(id=>{
+ const e=document.getElementById(id),v=localStorage.getItem("poe_"+id);
+ if(v!==null)e.value=v;
+ e.addEventListener("change",()=>{localStorage.setItem("poe_"+id,e.value);render();});
+});
+updateCapitalSummary();
+
  const fq=document.getElementById("fixedItemQty");
  if(fq){
    fq.addEventListener("input",ratioByItemQty);
@@ -604,7 +617,28 @@ function queueRows(all){
    .sort((a,b)=>b.vol-a.vol || b.s-a.s)
    .slice(0,Math.max(1,n(queueSize.value,15)))
 }
-function render(){
+
+function capCfg(){
+ const capital=Math.max(0,+document.getElementById("capitalDiv").value||0);
+ const use=Math.min(100,Math.max(5,+document.getElementById("capitalUsePct").value||25));
+ const reserve=Math.min(80,Math.max(0,+document.getElementById("capitalReservePct").value||20));
+ const rate=Math.max(1,+document.getElementById("divRate").value||1);
+ return {capital,use,reserve,rate,usable:capital*(1-reserve/100),per:capital*use/100};
+}
+function capitalFit(x){
+ const c=capCfg(), chaos=+(x.chaosValue??x.value??0);
+ const unitD=chaos/c.rate;
+ if(!c.capital||!unitD)return {ok:true,qty:0,cost:0};
+ const budget=Math.min(c.usable,c.per), qty=Math.floor(budget/unitD);
+ return {ok:qty>=1,qty,cost:qty*unitD};
+}
+function updateCapitalSummary(){
+ const e=document.getElementById("capitalSummary"); if(!e)return;
+ const c=capCfg();
+ e.innerHTML=c.capital?`Vốn <b>${c.capital.toFixed(1)}D</b> · dự phòng recycle <b>${c.reserve}%</b> · vốn hoạt động <b>${c.usable.toFixed(1)}D</b> · tối đa/món <b>${Math.min(c.usable,c.per).toFixed(1)}D</b>. Ưu tiên turnover/liquidity, loại món không mua nổi ít nhất 1 item.`:"Nhập vốn Divine để scanner chọn các món phù hợp.";
+}
+
+function render(){ updateCapitalSummary();
  const all=buildRows(),queue=queueRows(all),qkeys=new Set(queue.map(keyFor));
  let a=all;
  if(queueOnly.checked)a=a.filter(x=>qkeys.has(keyFor(x)));
