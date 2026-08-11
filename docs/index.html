@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v5.8.9</title>
+<title>PoE Allflame Flip Scanner v5.9.0</title>
 <style>
 :root{
   --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
@@ -92,8 +92,8 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v5.8.9</h1>
-<div class="sub">V5.8.9: sửa lỗi <b>Rec. Qty / Rec. Capital</b> bị “—”. Nguyên nhân là exchange item có <code>chaosValue = 0</code> làm chặn fallback sang valuation đã normalize.</div>
+<h1>PoE Allflame Flip Scanner v5.9.0</h1>
+<div class="sub">V5.9.0 Profit Gate: <b>Rec. Qty / Rec. Capital</b> chỉ còn là đề xuất mua thật sau khi giá Faustus đạt ngưỡng lợi nhuận. Item chưa nhập giá chỉ hiện <b>Potential Qty</b>; item BỎ QUA sẽ không còn được đề xuất batch.</div>
 
 <div class="card">
   <label>Cloudflare Worker URL</label>
@@ -142,7 +142,7 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 <label>Dùng tối đa vốn / item %<input id="capitalUsePct" type="number" min="5" max="100" step="5" value="25"></label>
 <label>Giữ vốn recycle %<input id="capitalReservePct" type="number" min="0" max="80" step="5" value="20"></label>
 </div>
-<div id="capitalSummary" class="capitalSummary">Nhập vốn Divine để scanner chọn các món phù hợp.</div>
+<div id="capitalSummary" class="capitalSummary">Nhập vốn Divine để scanner chọn các món phù hợp.</div><div class="small" style="margin-top:4px"><b>* Potential</b> = chỉ ước tính theo vốn + liquidity, chưa xác nhận lợi nhuận Faustus.</div>
 
 <div class="capitalRow">
   <label>Batch % của Liquidity/Hour
@@ -202,15 +202,15 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
    <b>Ứng viên flip</b><span id="count" class="small">0 items</span>
  </div>
  <div class="tablewrap"><table><thead><tr>
-   <th>★ / Item</th><th>Liq.</th><th>Rec. Qty</th><th>Rec. Capital</th><th>Buy c/item</th><th>Sell D/item</th><th>Net Profit D</th><th>Net D/1M Gold</th><th>Decision</th><th></th>
+   <th>★ / Item</th><th>Liq.</th><th>Batch Qty</th><th>Batch Capital</th><th>Buy c/item</th><th>Sell D/item</th><th>Net Profit D</th><th>Net D/1M Gold</th><th>Decision</th><th></th>
  </tr></thead><tbody id="rows"></tbody></table></div>
- <div class="small" style="margin-top:7px">Bảng xếp theo Liquidity/Volume trước, sau đó Recommended Batch Fit, Net D/1M Gold và Net Profit D. V5.8.9 sửa Rec. Qty/Rec. Capital để dùng valuation dương hợp lệ thay vì bị kẹt ở chaosValue=0.</div>
+ <div class="small" style="margin-top:7px">Bảng xếp theo Liquidity/Volume trước. Batch Qty/Capital có dấu * = <b>Potential</b> trước khi nhập Faustus. Sau khi nhập giá: chỉ item đạt Min Net Profit + Min D/1M Gold mới giữ batch; item BỎ QUA sẽ về Qty 0 / Capital —.</div>
 </div>
 
 <div class="side">
 <div class="card">
  <b>Faustus Check Queue</b>
- <p class="small">Queue ưu tiên item có Liquidity/Volume lớn. Click item để nhập ratio nhanh.</p>
+ <p class="small">Queue chỉ là danh sách item nên kiểm tra Faustus trước, ưu tiên Liquidity/Volume + Capital Fit. Đây chưa phải khuyến nghị mua.</p>
  <div id="checkQueue" class="queue"><div class="small">Hãy quét thị trường.</div></div>
 </div>
 
@@ -399,12 +399,38 @@ function dedupeItems(arr){
   return [...m.values()];
 }
 
+
+function profitabilityGate(x){
+ const rs=x?.rs;
+ if(!rs || !rs.entered)return {entered:false,ok:false,reason:"CHƯA NHẬP"};
+ const minNet=Math.max(0,n(targetRoi.value,.25));
+ const minGold=Math.max(0,n(goodGoldD.value,5));
+ if(rs.netProfitDiv==null || rs.netProfitDiv<=0)return {entered:true,ok:false,reason:"NET ≤ 0"};
+ if(rs.netProfitDiv<minNet)return {entered:true,ok:false,reason:`NET < ${minNet}D`};
+ if(rs.netPer1MGold==null || rs.netPer1MGold<minGold)return {entered:true,ok:false,reason:`< ${minGold}D/1M Gold`};
+ return {entered:true,ok:true,reason:"OK"};
+}
+function batchRecommendation(x){
+ const cf=capitalFit(x);
+ const gate=profitabilityGate(x);
+ if(!gate.entered){
+   return {mode:"potential",qty:cf.recQty||0,cost:cf.recCost||0,cf,gate};
+ }
+ if(!gate.ok){
+   return {mode:"blocked",qty:0,cost:0,cf,gate};
+ }
+ return {mode:"recommended",qty:cf.recQty||0,cost:cf.recCost||0,cf,gate};
+}
+
 function simpleDecision(x){
+ const gate=profitabilityGate(x);
+ if(!gate.entered)return"—";
+ if(!gate.ok)return"BỎ QUA";
  const rs=x.rs;
- if(!rs.entered || rs.netProfitDiv==null || rs.netProfitDiv<=0)return"—";
- if(rs.netPer1MGold>=n(buyNowGoldD.value,7) && rs.netProfitDiv>=n(buyNowRoi.value,1))return"ƯU TIÊN";
- if(rs.netPer1MGold>=n(goodGoldD.value,5) && rs.netProfitDiv>=n(targetRoi.value,.25))return"CÂN NHẮC";
- return"BỎ QUA";
+ const priorityGold=n(buyNowGoldD.value,7);
+ const priorityNet=n(buyNowRoi.value,1);
+ if(rs.netPer1MGold>=priorityGold && rs.netProfitDiv>=priorityNet)return"ƯU TIÊN";
+ return"CÂN NHẮC";
 }
 function simpleDecisionClass(d){return d==="ƯU TIÊN"?"decisionPriority":d==="CÂN NHẮC"?"decisionConsider":d==="BỎ QUA"?"decisionSkip":"unknown"}
 function init(){
@@ -763,7 +789,7 @@ function capitalFit(x){
 function updateCapitalSummary(){
  const e=document.getElementById("capitalSummary"); if(!e)return;
  const c=capCfg();
- e.innerHTML=c.capital?`Vốn <b>${c.capital.toFixed(1)}D</b> · dự phòng recycle <b>${c.reserve}%</b> · vốn hoạt động <b>${c.usable.toFixed(1)}D</b> · trần/món <b>${Math.min(c.usable,c.per).toFixed(1)}D</b> · batch target <b>${c.batchVolPct}% Liquidity/h</b>. Ranking: Turnover/Liquidity → Recommended Batch Fit → Net D/1M Gold → Net Profit. Recommended Batch dùng một phần nhỏ Liquidity/Hour và không mặc định dùng hết vốn.`:"Nhập vốn Divine để scanner chọn các món phù hợp.";
+ e.innerHTML=c.capital?`Vốn <b>${c.capital.toFixed(1)}D</b> · dự phòng recycle <b>${c.reserve}%</b> · vốn hoạt động <b>${c.usable.toFixed(1)}D</b> · trần/món <b>${Math.min(c.usable,c.per).toFixed(1)}D</b> · batch target <b>${c.batchVolPct}% Liquidity/h</b>. Ranking: Turnover/Liquidity → Recommended Batch Fit → Net D/1M Gold → Net Profit. Potential Batch dùng một phần nhỏ Liquidity/Hour. Chỉ sau khi Faustus đạt ngưỡng lợi nhuận nó mới trở thành Recommended Batch.`:"Nhập vốn Divine để scanner chọn các món phù hợp.";
 }
 
 function render(){ updateCapitalSummary();
@@ -777,12 +803,17 @@ function render(){ updateCapitalSummary();
  count.textContent=`${a.length} items`;rows.innerHTML="";
  a.slice(0,120).forEach(x=>{
   const tr=document.createElement("tr"),cc=x.change>0?"up":x.change<0?"down":"",k=keyFor(x),star=watch[k]?"on":"",rc=x.rs.entered?(x.rs.roi>=10?"roi-good":x.rs.roi>0?"roi-mid":"roi-bad"):"";
-  const sd=simpleDecision(x),isX=isCrossedKey(k),cf=capitalFit(x);
+  const sd=simpleDecision(x),isX=isCrossedKey(k),br=batchRecommendation(x),cf=br.cf;
   if(isX)tr.classList.add("crossed");
   tr.innerHTML=`<td><div class="name"><span class="star ${star}">★</span>${x.icon?`<img src="${esc(x.icon)}" onerror="this.style.display='none'">`:""}<span>${esc(x.name)}</span></div></td>
   <td>${fmt(x.vol)}</td>
-  <td class="${cf.recQty>=10?"roi-good":cf.recQty>=3?"roi-mid":"roi-bad"}" title="${cf.recQty?`Max theo vốn: ${cf.maxQty||0} item · Unit ${cf.unitD.toFixed(4)}D`:`Không tính được: market rate=${capCfg().rate}, chaos value=${effectiveChaosValue(x)}`}">${cf.recQty||"—"}</td>
-  <td title="${cf.recCost?`Max capital theo policy: ${cf.maxCost.toFixed(1)}D`:`Chưa có valuation hợp lệ`}">${cf.recCost?cf.recCost.toFixed(1)+"D":"—"}</td>
+  <td class="${br.mode==="recommended"?(br.qty>=10?"roi-good":br.qty>=3?"roi-mid":"roi-bad"):br.mode==="blocked"?"roi-bad":"roi-mid"}"
+      title="${br.mode==="potential"?`Potential Qty trước khi nhập Faustus · Max theo vốn: ${cf.maxQty||0}`:br.mode==="blocked"?`Không đề xuất: ${br.gate.reason}`:`Recommended · Max theo vốn: ${cf.maxQty||0}`}">
+      ${br.mode==="blocked"?"0":(br.qty||"—")}${br.mode==="potential"&&br.qty?"*":""}
+  </td>
+  <td title="${br.mode==="potential"?"Potential Capital trước khi nhập Faustus":br.mode==="blocked"?`Không đề xuất: ${br.gate.reason}`:"Recommended Capital"}">
+      ${br.mode==="blocked"?"—":(br.cost?br.cost.toFixed(1)+"D":"—")}${br.mode==="potential"&&br.cost?"*":""}
+  </td>
   <td>${x.rs.entered?x.rs.buy.toFixed(2)+"c":"—"}</td><td>${x.rs.entered?x.rs.sell.toFixed(4)+"D":"—"}</td>
   <td class="${x.rs.entered&&x.rs.netProfitDiv>=0?"roi-good":"roi-bad"}">${x.rs.entered?x.rs.netProfitDiv.toFixed(2)+"D":"—"}</td>
   <td class="${x.rs.netPer1MGold!=null?(x.rs.netPer1MGold>=n(buyNowGoldD.value,7)?"roi-good":x.rs.netPer1MGold>=n(goodGoldD.value,5)?"roi-mid":"roi-bad"):""}">${x.rs.netPer1MGold!=null?x.rs.netPer1MGold.toFixed(2)+"D":"—"}</td>
