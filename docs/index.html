@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v5.9.0</title>
+<title>PoE Allflame Flip Scanner v5.9.3</title>
 <style>
 :root{
   --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
@@ -74,26 +74,29 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 .turnoverNote{color:#a9c7d8;font-size:12px;margin-top:6px}
 
 
-.dualTabs{display:flex;gap:6px;margin:8px 0 10px}
-.dualTabs button{width:auto;padding:7px 10px}
-.dualTabs button.active{background:#76591f;border-color:#aa8136}
-.dualPane{display:none}.dualPane.active{display:block}
-.compareBox{margin-top:10px;background:#0e161c;border:1px solid #293843;border-radius:9px;padding:10px}
-.compareGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.bestDir{display:inline-block;margin-top:8px;padding:5px 9px;border-radius:999px;background:#123e2d;color:#66e5a8;font-weight:800}
-@media(max-width:650px){.compareGrid{grid-template-columns:1fr}}
 
 .draftBar{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
 .draftBar button{width:auto}
 .draftInfo{margin-top:6px;font-size:12px;color:var(--muted)}
 .capitalRow{display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:8px;margin:8px 0}.capitalSummary{margin:8px 0;padding:9px 11px;background:#0c151b;border:1px solid var(--line);border-radius:9px;font-size:12px}@media(max-width:900px){.capitalRow{grid-template-columns:1fr}}
 #divRate[readonly]{font-weight:800;color:#60e0a5;background:#0b1615}
+
+.quickModalBackdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:9998}
+.quickModalBackdrop.show{display:block}
+.quickModal{display:none;position:fixed;z-index:9999;left:50%;top:50%;transform:translate(-50%,-50%);
+ width:min(560px,94vw);max-height:90vh;overflow:auto;background:#111b22;border:1px solid #40515d;border-radius:12px;
+ box-shadow:0 20px 60px rgba(0,0,0,.5);padding:14px}
+.quickModal.show{display:block}
+.quickModalHeader{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
+.quickModalHeader button{width:auto}
+.quickModal .ratio4{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:700px){.quickModal .ratio4{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v5.9.0</h1>
-<div class="sub">V5.9.0 Profit Gate: <b>Rec. Qty / Rec. Capital</b> chỉ còn là đề xuất mua thật sau khi giá Faustus đạt ngưỡng lợi nhuận. Item chưa nhập giá chỉ hiện <b>Potential Qty</b>; item BỎ QUA sẽ không còn được đề xuất batch.</div>
+<h1>PoE Allflame Flip Scanner v5.9.3</h1>
+<div class="sub">V5.9.3: Quick Faustus Popup giữ giao diện gọn; các ô số lượng item dùng mũi tên tăng/giảm theo <b>1 item</b> mỗi lần.</div>
 
 <div class="card">
   <label>Cloudflare Worker URL</label>
@@ -142,7 +145,7 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 <label>Dùng tối đa vốn / item %<input id="capitalUsePct" type="number" min="5" max="100" step="5" value="25"></label>
 <label>Giữ vốn recycle %<input id="capitalReservePct" type="number" min="0" max="80" step="5" value="20"></label>
 </div>
-<div id="capitalSummary" class="capitalSummary">Nhập vốn Divine để scanner chọn các món phù hợp.</div><div class="small" style="margin-top:4px"><b>* Potential</b> = chỉ ước tính theo vốn + liquidity, chưa xác nhận lợi nhuận Faustus.</div>
+<div id="capitalSummary" class="capitalSummary">Nhập vốn Divine để scanner chọn các món phù hợp.</div><div class="small" style="margin-top:4px"><b>* Potential</b> = chỉ ước tính theo vốn + liquidity, chưa xác nhận lợi nhuận Faustus.</div><div class="small" style="margin-top:4px"><b>Soft Gate:</b> Net Profit thấp hơn Min vẫn có thể được CÂN NHẮC nếu Liquidity cao và Net D/1M Gold mạnh. Chỉ hard-skip khi Net ≤ 0 hoặc Gold efficiency dưới ngưỡng.</div>
 
 <div class="capitalRow">
   <label>Batch % của Liquidity/Hour
@@ -204,7 +207,7 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
  <div class="tablewrap"><table><thead><tr>
    <th>★ / Item</th><th>Liq.</th><th>Batch Qty</th><th>Batch Capital</th><th>Buy c/item</th><th>Sell D/item</th><th>Net Profit D</th><th>Net D/1M Gold</th><th>Decision</th><th></th>
  </tr></thead><tbody id="rows"></tbody></table></div>
- <div class="small" style="margin-top:7px">Bảng xếp theo Liquidity/Volume trước. Batch Qty/Capital có dấu * = <b>Potential</b> trước khi nhập Faustus. Sau khi nhập giá: chỉ item đạt Min Net Profit + Min D/1M Gold mới giữ batch; item BỎ QUA sẽ về Qty 0 / Capital —.</div>
+ <div class="small" style="margin-top:7px">Bảng xếp theo Liquidity/Volume trước. Batch Qty/Capital có dấu * = <b>Potential</b> trước khi nhập Faustus. Sau khi nhập giá: Min Net Profit là soft gate; item profit nhỏ vẫn giữ batch nếu turnover + Gold efficiency tốt. Net ≤ 0 hoặc dưới Min D/1M Gold mới bị hard-skip.</div>
 </div>
 
 <div class="side">
@@ -214,15 +217,35 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
  <div id="checkQueue" class="queue"><div class="small">Hãy quét thị trường.</div></div>
 </div>
 
-<div class="card">
- <b>Quick Faustus Ratio Entry</b><div class="small" style="margin-top:4px">Giá hiện tại sẽ bị reset khi Quét Thị Trường. Dùng LƯU BẢN NHÁP trước nếu muốn giữ lại.</div>
- <label>Item</label><input id="qName" readonly>
- <div class="dualTabs">
-   <button id="tabCD" class="sec active" onclick="switchDualTab('cd')">CHAOS → ITEM → DIVINE</button>
-   <button id="tabDC" class="sec" onclick="switchDualTab('dc')">DIVINE → ITEM → CHAOS</button>
- </div>
 
- <div id="paneCD" class="dualPane active">
+
+
+
+
+<div class="card">
+ <b>Capital Projection</b>
+ <div class="capgrid">
+   <div class="capbox"><span class="small">100D</span><b id="p100">—</b></div>
+   <div class="capbox"><span class="small">500D</span><b id="p500">—</b></div>
+   <div class="capbox"><span class="small">1000D</span><b id="p1000">—</b></div>
+ </div>
+ <div id="capMeta" class="small" style="margin-top:8px">Chưa chọn item.</div>
+</div>
+
+
+
+
+
+</div>
+</div>
+</div>
+
+<div id="quickFaustusBackdrop" class="quickModalBackdrop" onclick="closeQuickFaustus()"></div><div id="quickFaustusModal" class="quickModal">
+ <div class="quickModalHeader"><b>Quick Faustus Ratio Entry</b><button class="sec" onclick="closeQuickFaustus()">ĐÓNG</button></div><div class="small" style="margin-top:4px">Nhập giá Faustus hiện tại cho item vừa Analyze.</div>
+ <label>Item</label><input id="qName" readonly>
+ 
+
+ 
 <div style="margin-top:9px"><b class="small">BUY — mua item bằng Chaos</b></div>
  <div class="ratio4" style="margin-top:6px">
    <div><label>Chaos / item</label><input id="buyChaosPerItemInput" type="number" min="0" step="0.01" placeholder="268.8"></div>
@@ -247,55 +270,13 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
  <div class="small" style="margin-top:5px">Nhập đúng Gold fee hiển thị trong Faustus cho order/batch này. Gold đổi Divine → Chaos lấy từ phần cấu hình Closed Loop phía trên.</div>
 
  
-</div>
-
-<div id="paneDC" class="dualPane">
- <div style="margin-top:9px"><b class="small">BUY — mua item bằng Divine</b></div>
- <div class="ratio4" style="margin-top:6px">
-   <div><label>Divine / item</label><input id="buyDivPerItemInput" type="number" min="0" step="0.0001" placeholder="0.85"></div>
-   <div><label>Số lượng item</label><input id="buyItemQtyDC" type="number" min="1" step="1" placeholder="5"></div>
-   <div><label>Tổng Divine</label><input id="buyDivTotal" readonly></div>
-   <div><label>+0.01 D/item?</label><select id="buyDivPlus"><option value="0">Không</option><option value="1">+0.01</option></select></div>
- </div>
- <div style="margin-top:10px"><b class="small">SELL — bán item lấy Chaos</b></div>
- <div class="ratio4" style="margin-top:6px">
-   <div><label>Chaos / item</label><input id="sellChaosPerItemInput" type="number" min="0" step="0.01" placeholder="185"></div>
-   <div><label>Số lượng item</label><input id="sellItemQtyDC" type="number" min="1" step="1" placeholder="5"></div>
-   <div><label>Tổng Chaos</label><input id="sellChaosTotal" readonly></div>
-   <div><label>-1 c/item?</label><select id="sellChaosMinus"><option value="0">Không</option><option value="1">-1 c/item</option></select></div>
- </div>
- <div style="margin-top:10px"><b class="small">GOLD FEE — Divine → Item → Chaos</b></div>
- <div class="compact" style="margin-top:6px">
-   <div><label>Buy Gold Fee</label><input id="buyGoldFeeDC" type="number" min="0" step="1000"></div>
-   <div><label>Sell Gold Fee</label><input id="sellGoldFeeDC" type="number" min="0" step="1000"></div>
- </div>
-</div>
-<button style="margin-top:9px" onclick="saveQuick()">LƯU 2 CHIỀU + GOLD</button>
- <div id="qResult" class="status">Chưa chọn item.</div>
-<div id="dualCompareResult" class="compareBox"><div class="small">Nhập giá của một hoặc cả hai chiều để so sánh.</div></div>
-</div>
 
 
 
-
-<div class="card">
- <b>Capital Projection</b>
- <div class="capgrid">
-   <div class="capbox"><span class="small">100D</span><b id="p100">—</b></div>
-   <div class="capbox"><span class="small">500D</span><b id="p500">—</b></div>
-   <div class="capbox"><span class="small">1000D</span><b id="p1000">—</b></div>
- </div>
- <div id="capMeta" class="small" style="margin-top:8px">Chưa chọn item.</div>
-</div>
-
-
-
-
-
+<button style="margin-top:9px" onclick="saveQuick()">LƯU RATIO + GOLD</button>
+ 
 </div>
 </div>
-</div>
-
 <script src="config.js"></script>
 <script>
 const EX=[
@@ -402,13 +383,44 @@ function dedupeItems(arr){
 
 function profitabilityGate(x){
  const rs=x?.rs;
- if(!rs || !rs.entered)return {entered:false,ok:false,reason:"CHƯA NHẬP"};
+ if(!rs || !rs.entered)return {entered:false,ok:false,reason:"CHƯA NHẬP",tier:"none"};
+
  const minNet=Math.max(0,n(targetRoi.value,.25));
+ const priorityNet=Math.max(minNet,n(buyNowRoi.value,1));
  const minGold=Math.max(0,n(goodGoldD.value,5));
- if(rs.netProfitDiv==null || rs.netProfitDiv<=0)return {entered:true,ok:false,reason:"NET ≤ 0"};
- if(rs.netProfitDiv<minNet)return {entered:true,ok:false,reason:`NET < ${minNet}D`};
- if(rs.netPer1MGold==null || rs.netPer1MGold<minGold)return {entered:true,ok:false,reason:`< ${minGold}D/1M Gold`};
- return {entered:true,ok:true,reason:"OK"};
+ const priorityGold=Math.max(minGold,n(buyNowGoldD.value,7));
+ const liq=Math.max(0,n(x?.vol,0));
+
+ // Hard reject only when the closed-loop trade truly loses money
+ // or Gold efficiency is below the user's minimum.
+ if(rs.netProfitDiv==null || rs.netProfitDiv<=0)
+   return {entered:true,ok:false,reason:"NET ≤ 0",tier:"skip"};
+
+ if(rs.netPer1MGold==null || rs.netPer1MGold<minGold)
+   return {entered:true,ok:false,reason:`< ${minGold}D/1M Gold`,tier:"skip"};
+
+ // High-turnover override:
+ // profit may be below Min Net Profit, but very high liquidity + strong gold efficiency
+ // means small repeatable flips are still worth considering.
+ const highLiq = liq>=250000;
+ const veryHighLiq = liq>=750000;
+ const goldStrong = rs.netPer1MGold>=priorityGold;
+ const goldExcellent = rs.netPer1MGold>=priorityGold*2;
+
+ if(rs.netProfitDiv>=priorityNet && goldStrong)
+   return {entered:true,ok:true,reason:"ƯU TIÊN",tier:"priority"};
+
+ if(rs.netProfitDiv>=minNet)
+   return {entered:true,ok:true,reason:"ĐẠT NET",tier:"good"};
+
+ if((veryHighLiq && goldStrong) || (highLiq && goldExcellent))
+   return {entered:true,ok:true,reason:"TURNOVER OVERRIDE",tier:"turnover"};
+
+ // Small-profit flips remain allowed when gold efficiency is healthy and liquidity is decent.
+ if(liq>=100000 && rs.netPer1MGold>=priorityGold)
+   return {entered:true,ok:true,reason:"SMALL FAST FLIP",tier:"small"};
+
+ return {entered:true,ok:false,reason:`NET ${rs.netProfitDiv.toFixed(2)}D quá nhỏ`,tier:"skip"};
 }
 function batchRecommendation(x){
  const cf=capitalFit(x);
@@ -426,6 +438,8 @@ function simpleDecision(x){
  const gate=profitabilityGate(x);
  if(!gate.entered)return"—";
  if(!gate.ok)return"BỎ QUA";
+ if(gate.tier==="priority")return"ƯU TIÊN";
+ if(gate.tier==="turnover" || gate.tier==="small")return"CÂN NHẮC";
  const rs=x.rs;
  const priorityGold=n(buyNowGoldD.value,7);
  const priorityNet=n(buyNowRoi.value,1);
@@ -439,8 +453,8 @@ function init(){
  [...EX,...ST].forEach(([id,label])=>{const l=document.createElement("label");l.innerHTML=`<input type="checkbox" value="${id}" ${DEFAULT.has(id)?"checked":""}> ${label}`;cats.appendChild(l)});
  ["minValue","maxValue","minVol","maxChange","queueSize","targetRoi","buyNowRoi","goldBenchmarkD","goodGoldD","buyNowGoldD","goldBudget","recycleChaosPerDiv","recycleGoldFee","recycleMode","closedLoopMinDPerM","excludeBase","queueOnly","enteredOnly","watchOnly","profitableOnly","hideCrossed"]
  .forEach(id=>document.getElementById(id).addEventListener("input",()=>items.length&&render()));
- [buyChaosPerItemInput,buyItemQty,buyPlus,sellDivQty,sellItemQty,sellMinus,buyGoldFee,sellGoldFee].forEach(el=>el.addEventListener("input",()=>{previewQuick();updateDualCompare()}));
- [buyDivPerItemInput,buyItemQtyDC,buyDivPlus,sellChaosPerItemInput,sellItemQtyDC,sellChaosMinus,buyGoldFeeDC,sellGoldFeeDC].forEach(el=>el.addEventListener("input",()=>{previewReverse();updateDualCompare()}));
+ [buyChaosPerItemInput,buyItemQty,buyPlus,sellDivQty,sellItemQty,sellMinus,buyGoldFee,sellGoldFee].forEach(el=>el.addEventListener("input",()=>{previewQuick()}));
+updateDualCompare()}));
  [buyChaosPerItemInput,buyItemQty,sellDivQty,sellItemQty,buyGoldFee,sellGoldFee].forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter")saveQuick()}));
  ratioCalc(); updateDraftInfo();
 ["capitalDiv","capitalUsePct","capitalReservePct","batchVolPct","maxRecQty","minRecCapital"].forEach(id=>{
@@ -448,7 +462,7 @@ function init(){
  if(v!==null)e.value=v;
  e.addEventListener("change",()=>{localStorage.setItem("poe_"+id,e.value);render();});
 });
-updateCapitalSummary();
+updateCapitalSummary(); document.addEventListener("keydown",e=>{if(e.key==="Escape")closeQuickFaustus();});
 
  const fq=document.getElementById("fixedItemQty");
  if(fq){
@@ -808,7 +822,7 @@ function render(){ updateCapitalSummary();
   tr.innerHTML=`<td><div class="name"><span class="star ${star}">★</span>${x.icon?`<img src="${esc(x.icon)}" onerror="this.style.display='none'">`:""}<span>${esc(x.name)}</span></div></td>
   <td>${fmt(x.vol)}</td>
   <td class="${br.mode==="recommended"?(br.qty>=10?"roi-good":br.qty>=3?"roi-mid":"roi-bad"):br.mode==="blocked"?"roi-bad":"roi-mid"}"
-      title="${br.mode==="potential"?`Potential Qty trước khi nhập Faustus · Max theo vốn: ${cf.maxQty||0}`:br.mode==="blocked"?`Không đề xuất: ${br.gate.reason}`:`Recommended · Max theo vốn: ${cf.maxQty||0}`}">
+      title="${br.mode==="potential"?`Potential Qty trước khi nhập Faustus · Max theo vốn: ${cf.maxQty||0}`:br.mode==="blocked"?`Không đề xuất: ${br.gate.reason}`:`Recommended (${br.gate.reason}) · Max theo vốn: ${cf.maxQty||0}`}">
       ${br.mode==="blocked"?"0":(br.qty||"—")}${br.mode==="potential"&&br.qty?"*":""}
   </td>
   <td title="${br.mode==="potential"?"Potential Capital trước khi nhập Faustus":br.mode==="blocked"?`Không đề xuất: ${br.gate.reason}`:"Recommended Capital"}">
@@ -887,6 +901,20 @@ function resetCurrentFaustusForNewScan(){
 }
 
 function clearFaustus(){if(confirm("Xóa toàn bộ ratio Faustus đã nhập?")){faustus={};localStorage.removeItem("poeFaustusRatiosV52");render();clearQuick()}}
+
+function openQuickFaustus(){
+ const modal=document.getElementById("quickFaustusModal");
+ const backdrop=document.getElementById("quickFaustusBackdrop");
+ if(modal)modal.classList.add("show");
+ if(backdrop)backdrop.classList.add("show");
+}
+function closeQuickFaustus(){
+ const modal=document.getElementById("quickFaustusModal");
+ const backdrop=document.getElementById("quickFaustusBackdrop");
+ if(modal)modal.classList.remove("show");
+ if(backdrop)backdrop.classList.remove("show");
+}
+
 function selectItem(x){
  selectedKey=keyFor(x);qName.value=x.name;
  const f=faustus[selectedKey]||{};
@@ -894,11 +922,7 @@ function selectItem(x){
  buyItemQty.value=f.buyItem||"";buyPlus.value=f.buyPlus||"0";
  sellDivQty.value=f.sellDiv||"";sellItemQty.value=f.sellItem||"";sellMinus.value=f.sellMinus||"0";
  buyGoldFee.value=f.buyGold||"";sellGoldFee.value=f.sellGold||"";
- buyDivPerItemInput.value=f.buyDivUnit||"";buyItemQtyDC.value=f.buyItemDC||f.buyItem||"";
- buyDivPlus.value=f.buyDivPlus||"0";sellChaosPerItemInput.value=f.sellChaosUnit||"";
- sellItemQtyDC.value=f.sellItemDC||f.buyItem||"";sellChaosMinus.value=f.sellChaosMinus||"0";
- buyGoldFeeDC.value=f.buyGoldDC||"";sellGoldFeeDC.value=f.sellGoldDC||"";
- previewQuick();previewReverse();updateDualCompare();updateSelectedProjection();
+ previewQuick();updateSelectedProjection();openQuickFaustus();
 }
 function clearQuick(){selectedKey=null;qName.value="";buyChaosPerItemInput.value=buyItemQty.value=sellDivQty.value=sellItemQty.value=buyGoldFee.value=sellGoldFee.value="";buyPlus.value=sellMinus.value="0";buyChaosTotal.value=sellPerItem.value="";qResult.textContent="Chưa chọn item."}
 function previewQuick(){
@@ -909,8 +933,8 @@ function previewQuick(){
  sellPerItem.value=sell?sell.toFixed(6):"";
  if(!selectedKey){qResult.textContent="Chưa chọn item.";return}
  const dr=n(divRate.value,0);
- if(dr<=0){qResult.innerHTML=`<span class="bad">Chưa có Market Divine Rate. Hãy QUÉT THỊ TRƯỜNG trước.</span>`;return}
- if(!buy||!bi||!sell){qResult.innerHTML=`<span class="orange">Nhập Chaos/item, số lượng item và ratio SELL.</span>`;return}
+ if(dr<=0){if(window.qResult) qResult.innerHTML=`<span class="bad">Chưa có Market Divine Rate. Hãy QUÉT THỊ TRƯỜNG trước.</span>`;return}
+ if(!buy||!bi||!sell){if(window.qResult) qResult.innerHTML=`<span class="orange">Nhập Chaos/item, số lượng item và ratio SELL.</span>`;return}
  const profit=sell*dr-buy,roi=profit/buy*100;
  const bg=n(buyGoldFee.value),sg=n(sellGoldFee.value),reGold=n(recycleGoldFee.value),tg=bg+sg+reGold;
  const recycleRate=n(recycleChaosPerDiv.value,dr);
@@ -919,19 +943,16 @@ function previewQuick(){
  const recycleDiv=recycleMode.value==="all"?sellTotalDiv:(recycleRate>0?buyTotal/recycleRate:0);
  const netD=recycleMode.value==="all"?((sellTotalDiv*recycleRate-buyTotal)/recycleRate):(sellTotalDiv-recycleDiv);
  const perM=tg>0?netD*1000000/tg:null;
- qResult.innerHTML=`Buy <b>${buy.toFixed(2)}c/item</b> × ${bi} = <b>${total.toFixed(2)}c tổng</b><br>Sell <b>${sell.toFixed(4)}D/item</b> · Gross ROI <b>${roi.toFixed(2)}%</b><br>Recycle <b>${recycleDiv.toFixed(2)}D</b> → hoàn vốn Chaos · Net <b class="${netD>=0?"ok":"bad"}">${netD.toFixed(2)}D</b>${tg>0?`<br>Total Gold <b>${fmt(tg)}</b> · Net <b>${perM.toFixed(2)}D / 1M Gold</b>`:""}`;
+ if(window.qResult) qResult.innerHTML=`Buy <b>${buy.toFixed(2)}c/item</b> × ${bi} = <b>${total.toFixed(2)}c tổng</b><br>Sell <b>${sell.toFixed(4)}D/item</b> · Gross ROI <b>${roi.toFixed(2)}%</b><br>Recycle <b>${recycleDiv.toFixed(2)}D</b> → hoàn vốn Chaos · Net <b class="${netD>=0?"ok":"bad"}">${netD.toFixed(2)}D</b>${tg>0?`<br>Total Gold <b>${fmt(tg)}</b> · Net <b>${perM.toFixed(2)}D / 1M Gold</b>`:""}`;
 }
 function saveQuick(){
  if(!selectedKey)return;
  faustus[selectedKey]={
   buyUnit:n(buyChaosPerItemInput.value)||"",buyItem:n(buyItemQty.value)||"",buyPlus:n(buyPlus.value)||0,
   sellDiv:n(sellDivQty.value)||"",sellItem:n(sellItemQty.value)||"",sellMinus:n(sellMinus.value)||0,
-  buyGold:n(buyGoldFee.value)||0,sellGold:n(sellGoldFee.value)||0,
-  buyDivUnit:n(buyDivPerItemInput.value)||"",buyItemDC:n(buyItemQtyDC.value)||"",buyDivPlus:n(buyDivPlus.value)||0,
-  sellChaosUnit:n(sellChaosPerItemInput.value)||"",sellItemDC:n(sellItemQtyDC.value)||"",sellChaosMinus:n(sellChaosMinus.value)||0,
-  buyGoldDC:n(buyGoldFeeDC.value)||0,sellGoldDC:n(sellGoldFeeDC.value)||0
+  buyGold:n(buyGoldFee.value)||0,sellGold:n(sellGoldFee.value)||0
  };
- localStorage.setItem("poeFaustusRatiosV52",JSON.stringify(faustus));render();previewQuick();previewReverse();updateDualCompare();
+ localStorage.setItem("poeFaustusRatiosV52",JSON.stringify(faustus));render();previewQuick();closeQuickFaustus();
 }
 function updateSelectedProjection(){
  if(!selectedKey){p100.textContent=p500.textContent=p1000.textContent="—";capMeta.textContent="Chưa chọn item.";return}
@@ -960,33 +981,10 @@ function exportCsv(){
 }
 
 
-function switchDualTab(mode){
- const isCD=mode==="cd";
- paneCD.classList.toggle("active",isCD); paneDC.classList.toggle("active",!isCD);
- tabCD.classList.toggle("active",isCD); tabDC.classList.toggle("active",!isCD);
-}
-function reverseStatsFromInputs(){
- const q=Math.max(0,Math.floor(n(buyItemQtyDC.value))),sq=Math.max(0,Math.floor(n(sellItemQtyDC.value)));
- const qty=Math.min(q||sq,sq||q);
- let buyD=n(buyDivPerItemInput.value),sellC=n(sellChaosPerItemInput.value);
- if(n(buyDivPlus.value)===1&&buyD>0)buyD+=0.01;
- if(n(sellChaosMinus.value)===1&&sellC>1)sellC-=1;
- buyDivTotal.value=buyD&&qty?(buyD*qty).toFixed(4):"";
- sellChaosTotal.value=sellC&&qty?(sellC*qty).toFixed(2):"";
- const rate=n(recycleChaosPerDiv.value,n(divRate.value,0));
- const totalBuyD=buyD*qty,totalSellC=sellC*qty,netC=totalSellC-totalBuyD*rate,netD=rate>0?netC/rate:null;
- const totalGold=n(buyGoldFeeDC.value)+n(sellGoldFeeDC.value)+n(recycleGoldFee.value);
- return{qty,buyD,sellC,netD,netC,totalGold,perM:totalGold>0&&netD!=null?netD*1e6/totalGold:null};
-}
-function previewReverse(){reverseStatsFromInputs()}
-function updateDualCompare(){
- const out=document.getElementById("dualCompareResult"); if(!out)return;
- const x=selectedKey?items.find(z=>keyFor(z)===selectedKey):null,cd=x?realStats(x):null,dc=reverseStatsFromInputs();
- const cv=cd&&cd.entered&&cd.netProfitDiv!=null,dv=dc.buyD>0&&dc.sellC>0&&dc.qty>0&&dc.netD!=null;
- if(!cv&&!dv){out.innerHTML='<div class="small">Nhập giá của một hoặc cả hai chiều để so sánh.</div>';return}
- const best=(cv?cd.netProfitDiv:-Infinity)>=(dv?dc.netD:-Infinity)?"CHAOS → ITEM → DIVINE":"DIVINE → ITEM → CHAOS";
- out.innerHTML=`<div class="compareGrid"><div><span class="small">C → Item → D</span><div><b>${cv?cd.netProfitDiv.toFixed(2)+"D":"—"}</b></div><div class="small">${cv&&cd.netPer1MGold!=null?cd.netPer1MGold.toFixed(1)+"D/1M Gold":""}</div></div><div><span class="small">D → Item → C</span><div><b>${dv?dc.netD.toFixed(2)+"D":"—"}</b></div><div class="small">${dv&&dc.perM!=null?dc.perM.toFixed(1)+"D/1M Gold":""}</div></div></div><span class="bestDir">BEST: ${best}</span>`;
-}
+
+
+
+
 
 function ratioByItemQty(){
  const r=n(document.getElementById("ratio")?.value);
