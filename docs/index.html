@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v5.9.6</title>
+<title>PoE Allflame Flip Scanner v5.9.7</title>
 <style>
 :root{
   --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
@@ -93,12 +93,17 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 .quickModalBackdrop.show{display:block}
 .quickModal{display:none;position:fixed;z-index:9999;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,94vw);max-height:90vh;overflow:auto;background:#111b22;border:1px solid #40515d;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.5);padding:14px}
 .quickModal.show{display:block}.quickModalHeader{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}.quickModalHeader button{width:auto}
+
+.ratioCandidates{margin-top:9px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.ratioCandidate{display:grid;grid-template-columns:44px 72px 72px 72px 82px 1fr;gap:6px;align-items:center;padding:6px 7px;border-bottom:1px solid var(--line);font-size:12px}
+.ratioCandidate:last-child{border-bottom:0}.ratioCandidate.head{font-weight:800;background:#0c1419}.ratioCandidate.best{background:#10271d}
+.ratioTag{font-size:10px;font-weight:800;padding:2px 5px;border-radius:999px;background:#173f31;color:#66e5a8;display:inline-block}
 </style>
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v5.9.6</h1>
-<div class="sub">V5.9.6: sửa Sell Gold Fee — <b>Buy Gold</b> scale theo số item mua, còn <b>Sell Gold</b> scale theo tổng số Divine bán/nhận được.</div>
+<h1>PoE Allflame Flip Scanner v5.9.7</h1>
+<div class="sub">V5.9.7: Ratio Calculator giờ trả về <b>nhiều cặp gần target</b> và xếp hạng theo <b>độ lệch ratio + batch size + ước tính Gold/batch</b>.</div>
 
 <div class="card">
   <label>Cloudflare Worker URL</label>
@@ -187,12 +192,20 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
  <div id="status" class="status">Sẵn sàng. V5.5 Closed Loop: Decision ưu tiên Net D/1M Gold → Net Profit D → Liquidity. ROI chỉ còn là chỉ số tham khảo.</div>
  <div class="small" style="margin-top:7px">V5.2: BUY nhập Chaos/item + số lượng → tự tính tổng Chaos. Đồng thời vẫn remap legacy name như <b>Maven's Orb → Orb of Dominance</b> và gộp các entry trùng tên trước khi xếp hạng.</div>
 </div></div><div class="topRightTools"><div class="card ratioCompact">
- <b>PoE Ratio Calculator</b><span class="small" style="margin-left:8px">4.17 → 25:6</span>
+ <b>PoE Ratio Calculator</b><span class="small" style="margin-left:8px">So sánh nhiều ratio</span>
  <div class="ratioMini" style="margin-top:8px">
-  <div><label>Ratio</label><input id="ratio" type="number" value="4.17" step=".01"></div>
-  <div><label>Max HAVE</label><input id="maxDen" type="number" value="100"></div>
+  <div><label>Ratio target</label><input id="ratio" type="number" value="4.17" step=".01"></div>
+  <div><label>Max item / batch</label><input id="maxDen" type="number" value="100"></div>
  </div>
- <button style="margin-top:8px" onclick="ratioCalc()">TÌM CẶP GẦN NHẤT</button>
+ <div class="ratioMini" style="margin-top:8px">
+  <div><label>Số cặp hiển thị</label><input id="ratioTopN" type="number" min="3" max="20" step="1" value="8"></div>
+  <div><label>Sell Gold / 1 Divine</label><input id="ratioGoldPerDiv" type="number" min="0" step="1" value="0"></div>
+ </div>
+ <div class="ratioMini" style="margin-top:8px">
+  <div><label>Ưu tiên batch nhỏ</label><select id="ratioSmallBias"><option value="1" selected>Có</option><option value="0">Không</option></select></div>
+  <div><label>Khoảng lệch tối đa</label><input id="ratioMaxError" type="number" min="0.001" step="0.001" value="0.02"></div>
+ </div>
+ <button style="margin-top:8px" onclick="ratioCalc()">SO SÁNH CÁC CẶP</button>
  <div class="ratioMini" style="margin-top:10px">
   <div><label>Số lượng Item</label><input id="fixedItemQty" type="number" min="1" step="1" placeholder="6"></div>
   <div><label>Cặp Ratio</label><input id="fixedRatioPreview" readonly placeholder="25 : 6"></div>
@@ -451,7 +464,12 @@ function init(){
  .forEach(id=>document.getElementById(id).addEventListener("input",()=>items.length&&render()));
  [buyChaosPerItemInput,buyItemQty,buyPlus,sellDivQty,sellItemQty,sellMinus,buyGoldPerItem,sellGoldPerDivine].forEach(el=>el.addEventListener("input",previewQuick));
  [buyChaosPerItemInput,buyItemQty,sellDivQty,sellItemQty,buyGoldPerItem,sellGoldPerDivine].forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter")saveQuick()}));
- ratioCalc(); updateDraftInfo();
+ ratioCalc();
+ ["ratioTopN","ratioGoldPerDiv","ratioSmallBias","ratioMaxError","maxDen"].forEach(id=>{
+   const el=document.getElementById(id);
+   if(el)el.addEventListener("input",ratioCalc);
+ });
+ updateDraftInfo();
 ["capitalDiv","capitalUsePct","capitalReservePct","batchVolPct","maxRecQty","minRecCapital"].forEach(id=>{
  const e=document.getElementById(id),v=localStorage.getItem("poe_"+id);
  if(v!==null)e.value=v;
@@ -969,9 +987,60 @@ function updateSelectedProjection(){
  capMeta.innerHTML=`<b>${esc(x.name)}</b><br>100D mua ~${a.qty} item · 500D ~${b.qty} · 1000D ~${c.qty}.${batches!=null?`<br>Gold budget ${fmt(gb)} đủ khoảng <b>${batches}</b> closed-loop batch tương tự.`:` <span class="small">Chưa nhập đủ Gold fee.</span>`}<br>Net closed-loop hiện tại: <b>${rs.netProfitDiv.toFixed(2)}D</b> / batch.`;
 }
 function ratioCalc(){
- const t=n(ratio.value),md=Math.max(1,n(maxDen.value,100));let a=[];
- for(let d=1;d<=md;d++){const ideal=t*d;for(let z=Math.max(1,Math.floor(ideal)-2);z<=Math.ceil(ideal)+2;z++){const r=z/d;if(Number(r.toFixed(2))===Number(t.toFixed(2)))a.push({z,d,r,sum:z+d,err:Math.abs(r-t)})}}
- a.sort((x,y)=>x.sum-y.sum||x.err-y.err);const b=a[0];ratioOut.innerHTML=b?`<div class="big">${b.z} : ${b.d}</div><div class="small">${b.z}/${b.d} = ${b.r.toFixed(6)} → ${b.r.toFixed(2)}</div>`:`<span class="bad">Không tìm thấy.</span>`;
+ const target=n(document.getElementById("ratio")?.value);
+ const maxItem=Math.max(1,Math.floor(n(document.getElementById("maxDen")?.value,100)));
+ const topN=Math.max(3,Math.min(20,Math.floor(n(document.getElementById("ratioTopN")?.value,8))));
+ const goldPerDiv=Math.max(0,n(document.getElementById("ratioGoldPerDiv")?.value));
+ const smallBias=n(document.getElementById("ratioSmallBias")?.value,1)===1;
+ const maxErr=Math.max(.000001,n(document.getElementById("ratioMaxError")?.value,.02));
+ const out=document.getElementById("ratioOut");
+ if(!out)return;
+ if(!target){out.innerHTML='<span class="small">Nhập Ratio target.</span>';return}
+
+ const candidates=[];
+ for(let item=1;item<=maxItem;item++){
+   const approxDiv=item/target;
+   const divBase=Math.max(1,Math.round(approxDiv));
+   for(let d=Math.max(1,divBase-2);d<=divBase+2;d++){
+     const actual=item/d;
+     const err=Math.abs(actual-target);
+     if(err>maxErr)continue;
+     const dPerItem=d/item;
+     const gold=goldPerDiv>0?goldPerDiv*d:0;
+     const batchPenalty=smallBias?(item/maxItem)*0.004:0;
+     const goldPenalty=goldPerDiv>0?(gold/Math.max(1,goldPerDiv*maxItem))*0.003:0;
+     const score=err+batchPenalty+goldPenalty;
+     candidates.push({item,div:d,actual,err,dPerItem,gold,score});
+   }
+ }
+
+ const seen=new Set();
+ const rows=candidates.filter(c=>{
+   const k=`${c.item}:${c.div}`;
+   if(seen.has(k))return false;
+   seen.add(k);return true;
+ }).sort((a,b)=>a.score-b.score||a.item-b.item||b.dPerItem-a.dPerItem).slice(0,topN);
+
+ if(!rows.length){out.innerHTML='<span class="orange">Không tìm thấy cặp trong khoảng lệch đã chọn.</span>';return}
+
+ const best=rows[0];
+ out.innerHTML=`
+ <div class="big">${best.item} : ${best.div}</div>
+ <div class="small">Best overall · ${best.actual.toFixed(6)} item/D · ${best.dPerItem.toFixed(6)} D/item · lệch ${best.err.toFixed(6)}${goldPerDiv>0?` · Sell Gold ${Math.round(best.gold).toLocaleString()}`:""}</div>
+ <div class="ratioCandidates">
+  <div class="ratioCandidate head"><span>#</span><span>Item:Div</span><span>Item/D</span><span>D/item</span><span>Gold</span><span>Đánh giá</span></div>
+  ${rows.map((c,i)=>{
+    let label="";
+    if(i===0)label='<span class="ratioTag">BEST</span>';
+    else if(c.item<=best.item&&c.err<=best.err*1.6)label='Batch nhỏ / priority tốt';
+    else if(c.dPerItem>best.dPerItem)label='Giá bán/item tốt hơn';
+    else label='Gần target';
+    return `<div class="ratioCandidate ${i===0?"best":""}">
+      <span>${i+1}</span><b>${c.item}:${c.div}</b><span>${c.actual.toFixed(4)}</span>
+      <span>${c.dPerItem.toFixed(4)}</span><span>${goldPerDiv>0?Math.round(c.gold).toLocaleString():"—"}</span><span>${label}</span>
+    </div>`;
+  }).join("")}
+ </div>`;
 }
 function exportCsv(){
  const header=["Item","Liquidity","7d","BuyChaosPerItem","Qty","BuyChaosTotal","SellDivPerItem","SellRevenueDiv","GrossProfitDiv","RecycleDiv","RecycleRateChaosPerDiv","BuyGold","SellGold","RecycleGold","ClosedLoopGold","NetProfitDiv","NetDivPer1MGold","ROI","Decision"];
