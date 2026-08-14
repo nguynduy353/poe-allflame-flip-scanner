@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v5.9.7</title>
+<title>PoE Allflame Flip Scanner v5.9.8</title>
 <style>
 :root{
   --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
@@ -98,12 +98,33 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 .ratioCandidate{display:grid;grid-template-columns:44px 72px 72px 72px 82px 1fr;gap:6px;align-items:center;padding:6px 7px;border-bottom:1px solid var(--line);font-size:12px}
 .ratioCandidate:last-child{border-bottom:0}.ratioCandidate.head{font-weight:800;background:#0c1419}.ratioCandidate.best{background:#10271d}
 .ratioTag{font-size:10px;font-weight:800;padding:2px 5px;border-radius:999px;background:#173f31;color:#66e5a8;display:inline-block}
+
+/* v5.9.8: wider ratio calculator */
+@media(min-width:1100px){
+  .topgrid{grid-template-columns:minmax(0,1fr) 560px !important}
+  .topRightTools{width:560px !important;min-width:560px !important}
+  .ratioCompact{width:100% !important;max-width:none !important}
+}
+@media(min-width:1500px){
+  .topgrid{grid-template-columns:minmax(0,1fr) 650px !important}
+  .topRightTools{width:650px !important;min-width:650px !important}
+}
+.ratioCandidates{width:100%;max-width:none;overflow-x:auto}
+.ratioCandidate{
+ grid-template-columns:38px 86px 86px 86px 105px minmax(160px,1fr) !important;
+ gap:8px !important; min-width:600px; white-space:nowrap;
+}
+#ratioOut{width:100%;max-width:none}
+@media(max-width:1099px){
+ .topRightTools{width:100% !important;min-width:0 !important}
+ .ratioCompact{width:100% !important}
+}
 </style>
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v5.9.7</h1>
-<div class="sub">V5.9.7: Ratio Calculator giờ trả về <b>nhiều cặp gần target</b> và xếp hạng theo <b>độ lệch ratio + batch size + ước tính Gold/batch</b>.</div>
+<h1>PoE Allflame Flip Scanner v5.9.8</h1>
+<div class="sub">V5.9.8: mở rộng <b>PoE Ratio Calculator</b> và Ratio Candidates để các cột hiển thị đầy đủ, dễ đọc hơn.</div>
 
 <div class="card">
   <label>Cloudflare Worker URL</label>
