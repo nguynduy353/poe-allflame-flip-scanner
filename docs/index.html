@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v6.0.3</title>
+<title>PoE Allflame Flip Scanner v6.0.4</title>
 <style>
 :root{
   --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
@@ -155,8 +155,8 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v6.0.3</h1>
-<div class="sub">V6.0.3: <b>Batch Qty</b> được làm tròn theo số lượng item trong ratio SELL của Quick Faustus. Ví dụ ratio 16 item → 19D thì batch gợi ý luôn là bội số của 16.</div>
+<h1>PoE Allflame Flip Scanner v6.0.4</h1>
+<div class="sub">V6.0.4: bảng ứng viên chỉ tập trung vào <b>Real Net D</b>; bỏ cột Trade Net D và thêm <b>Real Net / vòng</b> để biết lợi nhuận thực của mỗi vòng ratio SELL.</div>
 
 <div class="card">
   <label>Cloudflare Worker URL</label>
@@ -273,9 +273,9 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
    <b>Ứng viên flip</b><span id="count" class="small">0 items</span>
  </div>
  <div class="tablewrap"><table><thead><tr>
-   <th>★ / Item</th><th>Liq.</th><th>Batch Qty</th><th>Batch Capital</th><th>Buy c/item</th><th>Sell D/item</th><th>Trade Net D</th><th>Gold Cost D</th><th>Real Net D</th><th>Net D/1M Gold</th><th>Decision</th><th></th>
+   <th>★ / Item</th><th>Liq.</th><th>Batch Qty</th><th>Batch Capital</th><th>Buy c/item</th><th>Sell D/item</th><th>Gold Cost D</th><th>Real Net D</th><th>Real Net / vòng</th><th>Net D/1M Gold</th><th>Decision</th><th></th>
  </tr></thead><tbody id="rows"></tbody></table></div>
- <div class="small" style="margin-top:7px">V6.0.3: <b>Batch Qty</b> sau khi có ratio Faustus sẽ là bội số của số item SELL. Ví dụ SELL 16 item → 19D, raw batch 74 sẽ được gợi ý thành <b>64 item = 4 vòng</b>. Real Net vẫn tính sau toàn bộ Gold cost.</div>
+ <div class="small" style="margin-top:7px">V6.0.4: <b>Real Net / vòng</b> = Real Net của toàn batch ÷ số vòng SELL. Ví dụ batch 175 = 5 vòng và Real Net 0.12D thì khoảng <b>0.024D/vòng</b>. Trade Net D đã được ẩn khỏi bảng.</div>
 </div>
 
 </div>
@@ -927,9 +927,9 @@ function render(){ updateCapitalSummary();
       ${br.mode==="blocked"?"—":(br.cost?br.cost.toFixed(1)+"D":"—")}${br.mode==="potential"&&br.cost?"*":""}
   </td>
   <td>${x.rs.entered?x.rs.buy.toFixed(2)+"c":"—"}</td><td>${x.rs.entered?x.rs.sell.toFixed(4)+"D":"—"}</td>
-  <td class="${x.rs.entered&&x.rs.netProfitDiv>=0?"roi-good":"roi-bad"}">${x.rs.entered?x.rs.netProfitDiv.toFixed(2)+"D":"—"}</td>
   <td>${x.rs.goldCostDiv!=null?x.rs.goldCostDiv.toFixed(2)+"D":"—"}</td>
   <td class="${x.rs.economicNetDiv!=null?(x.rs.economicNetDiv>0?"roi-good":"roi-bad"):""}">${x.rs.economicNetDiv!=null?x.rs.economicNetDiv.toFixed(2)+"D":"—"}</td>
+  <td class="${x.rs.economicNetDiv!=null?(x.rs.economicNetDiv>0?"roi-good":"roi-bad"):""}" title="${br.aligned?.rounds?`${br.aligned.rounds} vòng × ${br.aligned.ratioItems} item`:"Chưa có ratio SELL"}">${x.rs.economicNetDiv!=null&&br.aligned?.rounds?(x.rs.economicNetDiv/br.aligned.rounds).toFixed(3)+"D":"—"}</td>
   <td class="${x.rs.netPer1MGold!=null?(x.rs.netPer1MGold>=n(buyNowGoldD.value,7)?"roi-good":x.rs.netPer1MGold>=n(goodGoldD.value,5)?"roi-mid":"roi-bad"):""}">${x.rs.netPer1MGold!=null?x.rs.netPer1MGold.toFixed(2)+"D":"—"}</td>
   <td><span class="badge ${simpleDecisionClass(sd)}">${sd}</span></td>
   <td><button class="sec mini analyzeBtn">Analyze</button> <button class="mini crossBtn ${isX?"active":""}">${isX?"Bỏ gạch":"Gạch"}</button></td>`;
