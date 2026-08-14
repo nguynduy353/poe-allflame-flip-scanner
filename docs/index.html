@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v6.0.2</title>
+<title>PoE Allflame Flip Scanner v6.0.3</title>
 <style>
 :root{
   --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
@@ -155,8 +155,8 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v6.0.2</h1>
-<div class="sub">V6.0.2: xóa <b>Faustus Check Queue</b> và <b>Capital Projection</b>; bố cục được thu gọn để <b>PoE Ratio Calculator</b> hiển thị trọn vẹn mà không cần kéo ngang.</div>
+<h1>PoE Allflame Flip Scanner v6.0.3</h1>
+<div class="sub">V6.0.3: <b>Batch Qty</b> được làm tròn theo số lượng item trong ratio SELL của Quick Faustus. Ví dụ ratio 16 item → 19D thì batch gợi ý luôn là bội số của 16.</div>
 
 <div class="card">
   <label>Cloudflare Worker URL</label>
@@ -275,7 +275,7 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
  <div class="tablewrap"><table><thead><tr>
    <th>★ / Item</th><th>Liq.</th><th>Batch Qty</th><th>Batch Capital</th><th>Buy c/item</th><th>Sell D/item</th><th>Trade Net D</th><th>Gold Cost D</th><th>Real Net D</th><th>Net D/1M Gold</th><th>Decision</th><th></th>
  </tr></thead><tbody id="rows"></tbody></table></div>
- <div class="small" style="margin-top:7px">V6.0.0: <b>Real Net D = Trade Net D − Gold Cost D</b>. Với mặc định 1M Gold = 1D, scanner chỉ đề xuất item khi Real Net dương; Gold efficiency và turnover là tiêu chí tiếp theo.</div>
+ <div class="small" style="margin-top:7px">V6.0.3: <b>Batch Qty</b> sau khi có ratio Faustus sẽ là bội số của số item SELL. Ví dụ SELL 16 item → 19D, raw batch 74 sẽ được gợi ý thành <b>64 item = 4 vòng</b>. Real Net vẫn tính sau toàn bộ Gold cost.</div>
 </div>
 
 </div>
@@ -466,16 +466,46 @@ function profitabilityGate(x){
 
  return {entered:true,ok:false,reason:`REAL NET ${rs.economicNetDiv.toFixed(2)}D quá nhỏ`,tier:"skip"};
 }
+
+function alignBatchToFaustusRatio(x,rawQty){
+ const f=ratioStatsForKey(keyFor(x));
+ const ratioItems=Math.max(0,Math.floor(n(f.sellItem)));
+ const raw=Math.max(0,Math.floor(n(rawQty)));
+
+ // Before a SELL ratio is entered, keep the normal potential quantity.
+ if(!ratioItems || !raw){
+   return {qty:raw,ratioItems:0,rounds:0,aligned:false};
+ }
+
+ // Do not exceed the capital/liquidity recommendation.
+ // Example: raw 74 and ratio 16 items => 64 items = 4 complete SELL batches.
+ let rounds=Math.floor(raw/ratioItems);
+
+ // If raw recommendation is below one full ratio batch but capital can afford
+ // one complete ratio, allow exactly one round.
+ if(rounds<1){
+   const cf=capitalFit(x);
+   if(cf.maxQty>=ratioItems)rounds=1;
+ }
+
+ const qty=rounds>0?rounds*ratioItems:0;
+ return {qty,ratioItems,rounds,aligned:true};
+}
+
 function batchRecommendation(x){
  const cf=capitalFit(x);
  const gate=profitabilityGate(x);
+ const aligned=alignBatchToFaustusRatio(x,cf.recQty||0);
+ const qty=aligned.qty;
+ const cost=qty>0&&cf.unitD>0?qty*cf.unitD:0;
+
  if(!gate.entered){
-   return {mode:"potential",qty:cf.recQty||0,cost:cf.recCost||0,cf,gate};
+   return {mode:"potential",qty,cost,cf,gate,aligned};
  }
  if(!gate.ok){
-   return {mode:"blocked",qty:0,cost:0,cf,gate};
+   return {mode:"blocked",qty:0,cost:0,cf,gate,aligned};
  }
- return {mode:"recommended",qty:cf.recQty||0,cost:cf.recCost||0,cf,gate};
+ return {mode:"recommended",qty,cost,cf,gate,aligned};
 }
 
 function simpleDecision(x){
@@ -881,10 +911,19 @@ function render(){ updateCapitalSummary();
   tr.innerHTML=`<td><div class="name"><span class="star ${star}">★</span>${x.icon?`<img src="${esc(x.icon)}" onerror="this.style.display='none'">`:""}<span>${esc(x.name)}</span></div></td>
   <td>${fmt(x.vol)}</td>
   <td class="${br.mode==="recommended"?(br.qty>=10?"roi-good":br.qty>=3?"roi-mid":"roi-bad"):br.mode==="blocked"?"roi-bad":"roi-mid"}"
-      title="${br.mode==="potential"?`Potential Qty trước khi nhập Faustus · Max theo vốn: ${cf.maxQty||0}`:br.mode==="blocked"?`Không đề xuất: ${br.gate.reason}`:`Recommended (${br.gate.reason}) · Max theo vốn: ${cf.maxQty||0}`}">
+      title="${br.mode==="potential"
+ ?`Potential Qty${br.aligned?.ratioItems?` · ${br.aligned.rounds} vòng × ${br.aligned.ratioItems} item`:""} · Max theo vốn: ${cf.maxQty||0}`
+ :br.mode==="blocked"
+ ?`Không đề xuất: ${br.gate.reason}`
+ :`Recommended (${br.gate.reason})${br.aligned?.ratioItems?` · ${br.aligned.rounds} vòng × ${br.aligned.ratioItems} item`:""} · Max theo vốn: ${cf.maxQty||0}`}">
       ${br.mode==="blocked"?"0":(br.qty||"—")}${br.mode==="potential"&&br.qty?"*":""}
   </td>
-  <td title="${br.mode==="potential"?"Potential Capital trước khi nhập Faustus":br.mode==="blocked"?`Không đề xuất: ${br.gate.reason}`:"Recommended Capital"}">
+  <td title="${br.mode==="potential"
+ ?`Potential Capital${br.aligned?.ratioItems?` · ${br.aligned.rounds} vòng ratio hoàn chỉnh`:""}`
+ :br.mode==="blocked"
+ ?`Không đề xuất: ${br.gate.reason}`
+ :`Recommended Capital${br.aligned?.ratioItems?` · ${br.aligned.rounds} vòng ratio hoàn chỉnh`:""}`
+ }">
       ${br.mode==="blocked"?"—":(br.cost?br.cost.toFixed(1)+"D":"—")}${br.mode==="potential"&&br.cost?"*":""}
   </td>
   <td>${x.rs.entered?x.rs.buy.toFixed(2)+"c":"—"}</td><td>${x.rs.entered?x.rs.sell.toFixed(4)+"D":"—"}</td>
