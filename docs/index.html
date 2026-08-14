@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v5.9.4</title>
+<title>PoE Allflame Flip Scanner v5.9.5</title>
 <style>
 :root{
   --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
@@ -97,8 +97,8 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v5.9.4</h1>
-<div class="sub">V5.9.4: sửa lỗi JavaScript làm mất Category và vô hiệu Quét/Worker. Analyze mở Quick Faustus popup; số lượng tăng/giảm từng 1 item.</div>
+<h1>PoE Allflame Flip Scanner v5.9.5</h1>
+<div class="sub">V5.9.5: Quick Faustus chỉ cần nhập <b>Gold fee của 1 item</b>; tổng Buy/Sell Gold tự tăng theo số lượng item.</div>
 
 <div class="card">
   <label>Cloudflare Worker URL</label>
@@ -246,7 +246,7 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 <div id="quickFaustusBackdrop" class="quickModalBackdrop" onclick="closeQuickFaustus()"></div>
 <div id="quickFaustusModal" class="quickModal">
 <div class="quickModalHeader"><b>Quick Faustus Ratio Entry</b><button class="sec" onclick="closeQuickFaustus()">ĐÓNG</button></div>
-<div class="small">Nhập giá Faustus hiện tại cho item vừa Analyze.</div>
+<div class="small">Nhập giá Faustus hiện tại. Gold fee chỉ nhập cho 1 item; tổng Gold tự tính theo quantity.</div>
 <label>Item</label><input id="qName" readonly>
 <div style="margin-top:9px"><b class="small">BUY — mua item bằng Chaos</b></div>
 <div class="ratio4" style="margin-top:6px">
@@ -262,11 +262,14 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 <div><label>D/item</label><input id="sellPerItem" readonly></div>
 <div><label>-1 Divine?</label><select id="sellMinus"><option value="0">Không</option><option value="1">-1 Divine tổng</option></select></div>
 </div>
-<div style="margin-top:10px"><b class="small">GOLD FEE</b></div>
-<div class="compact" style="margin-top:6px">
-<div><label>Buy Gold Fee</label><input id="buyGoldFee" type="number" min="0" step="1000"></div>
-<div><label>Sell Gold Fee</label><input id="sellGoldFee" type="number" min="0" step="1000"></div>
+<div style="margin-top:10px"><b class="small">GOLD FEE — nhập phí cho 1 item</b></div>
+<div class="ratio4" style="margin-top:6px">
+<div><label>Buy Gold / 1 item</label><input id="buyGoldPerItem" type="number" min="0" step="1"></div>
+<div><label>Buy Gold tổng</label><input id="buyGoldFee" type="number" readonly></div>
+<div><label>Sell Gold / 1 item</label><input id="sellGoldPerItem" type="number" min="0" step="1"></div>
+<div><label>Sell Gold tổng</label><input id="sellGoldFee" type="number" readonly></div>
 </div>
+<div class="small" style="margin-top:5px">Tổng Gold = Gold/1 item × số lượng BUY/SELL.</div>
 <button style="margin-top:9px" onclick="saveQuick()">LƯU RATIO + GOLD</button>
 </div>
 
@@ -446,8 +449,8 @@ function init(){
  [...EX,...ST].forEach(([id,label])=>{const l=document.createElement("label");l.innerHTML=`<input type="checkbox" value="${id}" ${DEFAULT.has(id)?"checked":""}> ${label}`;cats.appendChild(l)});
  ["minValue","maxValue","minVol","maxChange","queueSize","targetRoi","buyNowRoi","goldBenchmarkD","goodGoldD","buyNowGoldD","goldBudget","recycleChaosPerDiv","recycleGoldFee","recycleMode","closedLoopMinDPerM","excludeBase","queueOnly","enteredOnly","watchOnly","profitableOnly","hideCrossed"]
  .forEach(id=>document.getElementById(id).addEventListener("input",()=>items.length&&render()));
- [buyChaosPerItemInput,buyItemQty,buyPlus,sellDivQty,sellItemQty,sellMinus,buyGoldFee,sellGoldFee].forEach(el=>el.addEventListener("input",()=>{previewQuick();updateDualCompare()}));
- [buyChaosPerItemInput,buyItemQty,sellDivQty,sellItemQty,buyGoldFee,sellGoldFee].forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter")saveQuick()}));
+ [buyChaosPerItemInput,buyItemQty,buyPlus,sellDivQty,sellItemQty,sellMinus,buyGoldPerItem,sellGoldPerItem].forEach(el=>el.addEventListener("input",previewQuick));
+ [buyChaosPerItemInput,buyItemQty,sellDivQty,sellItemQty,buyGoldPerItem,sellGoldPerItem].forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter")saveQuick()}));
  ratioCalc(); updateDraftInfo();
 ["capitalDiv","capitalUsePct","capitalReservePct","batchVolPct","maxRecQty","minRecCapital"].forEach(id=>{
  const e=document.getElementById(id),v=localStorage.getItem("poe_"+id);
@@ -901,11 +904,22 @@ function selectItem(x){
  buyChaosPerItemInput.value=f.buyUnit||((n(f.buyChaos)>0&&n(f.buyItem)>0)?(n(f.buyChaos)/n(f.buyItem)).toFixed(4):"");
  buyItemQty.value=f.buyItem||"";buyPlus.value=f.buyPlus||"0";
  sellDivQty.value=f.sellDiv||"";sellItemQty.value=f.sellItem||"";sellMinus.value=f.sellMinus||"0";
- buyGoldFee.value=f.buyGold||"";sellGoldFee.value=f.sellGold||"";
+ buyGoldPerItem.value=f.buyGoldPerItem||((f.buyGold&&f.buyItem)?(n(f.buyGold)/n(f.buyItem)).toFixed(2):"");
+ sellGoldPerItem.value=f.sellGoldPerItem||((f.sellGold&&f.sellItem)?(n(f.sellGold)/n(f.sellItem)).toFixed(2):"");
+ updateGoldTotals();
  previewQuick();updateSelectedProjection();openQuickFaustus();
 }
-function clearQuick(){selectedKey=null;qName.value="";buyChaosPerItemInput.value=buyItemQty.value=sellDivQty.value=sellItemQty.value=buyGoldFee.value=sellGoldFee.value="";buyPlus.value=sellMinus.value="0";buyChaosTotal.value=sellPerItem.value=""}
+function clearQuick(){selectedKey=null;qName.value="";buyChaosPerItemInput.value=buyItemQty.value=sellDivQty.value=sellItemQty.value=buyGoldPerItem.value=sellGoldPerItem.value=buyGoldFee.value=sellGoldFee.value="";buyPlus.value=sellMinus.value="0";buyChaosTotal.value=sellPerItem.value=""}
+function updateGoldTotals(){
+ const bq=Math.max(0,Math.floor(n(buyItemQty.value)));
+ const sq=Math.max(0,Math.floor(n(sellItemQty.value)))||bq;
+ const bp=Math.max(0,n(buyGoldPerItem.value));
+ const sp=Math.max(0,n(sellGoldPerItem.value));
+ buyGoldFee.value=bp&&bq?Math.round(bp*bq):"";
+ sellGoldFee.value=sp&&sq?Math.round(sp*sq):"";
+}
 function previewQuick(){
+ updateGoldTotals();
  let bu=n(buyChaosPerItemInput.value),bi=n(buyItemQty.value),sd=n(sellDivQty.value),si=n(sellItemQty.value);
  let buy=bu+(n(buyPlus.value)===1&&bu>0?1:0),sdEff=sd-(n(sellMinus.value)===1&&sd>1?1:0);
  const total=buy>0&&bi>0?buy*bi:0,sell=sdEff>0&&si>0?sdEff/si:0;
@@ -929,6 +943,7 @@ function saveQuick(){
  faustus[selectedKey]={
   buyUnit:n(buyChaosPerItemInput.value)||"",buyItem:n(buyItemQty.value)||"",buyPlus:n(buyPlus.value)||0,
   sellDiv:n(sellDivQty.value)||"",sellItem:n(sellItemQty.value)||"",sellMinus:n(sellMinus.value)||0,
+  buyGoldPerItem:n(buyGoldPerItem.value)||0,sellGoldPerItem:n(sellGoldPerItem.value)||0,
   buyGold:n(buyGoldFee.value)||0,sellGold:n(sellGoldFee.value)||0
  };
  localStorage.setItem("poeFaustusRatiosV52",JSON.stringify(faustus));render();previewQuick();closeQuickFaustus();
