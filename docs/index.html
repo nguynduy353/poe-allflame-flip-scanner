@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v5.9.9</title>
+<title>PoE Allflame Flip Scanner v6.0.0</title>
 <style>
 :root{
   --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
@@ -123,8 +123,8 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v5.9.9</h1>
-<div class="sub">V5.9.9: tính đúng <b>Recycle Gold</b> theo số Divine thực sự phải đổi về Chaos. Net D/1M Gold và Decision dùng toàn bộ Gold của closed loop.</div>
+<h1>PoE Allflame Flip Scanner v6.0.0</h1>
+<div class="sub">V6.0.0 Economic Gold Cost: mặc định <b>1,000,000 Gold = 1 Divine</b>. Scanner trừ giá trị Gold khỏi lợi nhuận closed-loop và chỉ đề xuất khi <b>Real Net Profit sau Gold &gt; 0</b>.</div>
 
 <div class="card">
   <label>Cloudflare Worker URL</label>
@@ -151,7 +151,7 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
   <div><label>Ưu tiên Net Profit D</label><input id="buyNowRoi" type="number" value="1" step=".1"></div>
  </div>
  <div class="grid" style="grid-template-columns:repeat(4,minmax(140px,1fr));margin-top:8px">
-  <div><label>Gold benchmark D / 1M</label><input id="goldBenchmarkD" type="number" value="7" step="0.1"></div>
+  <div><label>1M Gold = Divine</label><input id="goldValueDivPerM" type="number" value="1" min="0" step="0.05"><div class="small">Chi phí cơ hội của Gold.</div></div>
   <div><label>Min D / 1M Gold</label><input id="goodGoldD" type="number" value="5" step="0.1"></div>
   <div><label>Ưu tiên D / 1M Gold</label><input id="buyNowGoldD" type="number" value="7" step="0.1"></div>
   <div><label>Gold budget / batch</label><input id="goldBudget" type="number" value="2000000" step="10000"></div>
@@ -241,9 +241,9 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
    <b>Ứng viên flip</b><span id="count" class="small">0 items</span>
  </div>
  <div class="tablewrap"><table><thead><tr>
-   <th>★ / Item</th><th>Liq.</th><th>Batch Qty</th><th>Batch Capital</th><th>Buy c/item</th><th>Sell D/item</th><th>Net Profit D</th><th>Net D/1M Gold</th><th>Decision</th><th></th>
+   <th>★ / Item</th><th>Liq.</th><th>Batch Qty</th><th>Batch Capital</th><th>Buy c/item</th><th>Sell D/item</th><th>Trade Net D</th><th>Gold Cost D</th><th>Real Net D</th><th>Net D/1M Gold</th><th>Decision</th><th></th>
  </tr></thead><tbody id="rows"></tbody></table></div>
- <div class="small" style="margin-top:7px">Bảng xếp theo Liquidity/Volume trước. Batch Qty/Capital có dấu * = <b>Potential</b> trước khi nhập Faustus. Sau khi nhập giá: Min Net Profit là soft gate; item profit nhỏ vẫn giữ batch nếu turnover + Gold efficiency tốt. Net ≤ 0 hoặc dưới Min D/1M Gold mới bị hard-skip.</div>
+ <div class="small" style="margin-top:7px">V6.0.0: <b>Real Net D = Trade Net D − Gold Cost D</b>. Với mặc định 1M Gold = 1D, scanner chỉ đề xuất item khi Real Net dương; Gold efficiency và turnover là tiêu chí tiếp theo.</div>
 </div>
 
 <div class="side">
@@ -421,42 +421,38 @@ function profitabilityGate(x){
  const rs=x?.rs;
  if(!rs || !rs.entered)return {entered:false,ok:false,reason:"CHƯA NHẬP",tier:"none"};
 
- const minNet=Math.max(0,n(targetRoi.value,.25));
- const priorityNet=Math.max(minNet,n(buyNowRoi.value,1));
- const minGold=Math.max(0,n(goodGoldD.value,5));
- const priorityGold=Math.max(minGold,n(buyNowGoldD.value,7));
+ const minRealNet=Math.max(0,n(targetRoi.value,.25));
+ const priorityRealNet=Math.max(minRealNet,n(buyNowRoi.value,1));
+ const minGoldEfficiency=Math.max(0,n(goodGoldD.value,5));
+ const priorityGoldEfficiency=Math.max(minGoldEfficiency,n(buyNowGoldD.value,7));
  const liq=Math.max(0,n(x?.vol,0));
 
- // Hard reject only when the closed-loop trade truly loses money
- // or Gold efficiency is below the user's minimum.
- if(rs.netProfitDiv==null || rs.netProfitDiv<=0)
-   return {entered:true,ok:false,reason:"NET ≤ 0",tier:"skip"};
+ // Source of truth: profit after assigning an economic Divine cost to Gold.
+ if(rs.economicNetDiv==null || rs.economicNetDiv<=0)
+   return {entered:true,ok:false,reason:"REAL NET ≤ 0",tier:"skip"};
 
- if(rs.netPer1MGold==null || rs.netPer1MGold<minGold)
-   return {entered:true,ok:false,reason:`< ${minGold}D/1M Gold`,tier:"skip"};
+ // Keep Gold efficiency as a secondary quality filter.
+ if(rs.netPer1MGold==null || rs.netPer1MGold<minGoldEfficiency)
+   return {entered:true,ok:false,reason:`< ${minGoldEfficiency}D/1M Gold`,tier:"skip"};
 
- // High-turnover override:
- // profit may be below Min Net Profit, but very high liquidity + strong gold efficiency
- // means small repeatable flips are still worth considering.
- const highLiq = liq>=250000;
- const veryHighLiq = liq>=750000;
- const goldStrong = rs.netPer1MGold>=priorityGold;
- const goldExcellent = rs.netPer1MGold>=priorityGold*2;
+ const highLiq=liq>=250000;
+ const veryHighLiq=liq>=750000;
+ const goldStrong=rs.netPer1MGold>=priorityGoldEfficiency;
+ const goldExcellent=rs.netPer1MGold>=priorityGoldEfficiency*2;
 
- if(rs.netProfitDiv>=priorityNet && goldStrong)
+ if(rs.economicNetDiv>=priorityRealNet && goldStrong)
    return {entered:true,ok:true,reason:"ƯU TIÊN",tier:"priority"};
 
- if(rs.netProfitDiv>=minNet)
-   return {entered:true,ok:true,reason:"ĐẠT NET",tier:"good"};
+ if(rs.economicNetDiv>=minRealNet)
+   return {entered:true,ok:true,reason:"REAL NET ĐẠT",tier:"good"};
 
- if((veryHighLiq && goldStrong) || (highLiq && goldExcellent))
+ if((veryHighLiq&&goldStrong)||(highLiq&&goldExcellent))
    return {entered:true,ok:true,reason:"TURNOVER OVERRIDE",tier:"turnover"};
 
- // Small-profit flips remain allowed when gold efficiency is healthy and liquidity is decent.
- if(liq>=100000 && rs.netPer1MGold>=priorityGold)
+ if(liq>=100000&&rs.netPer1MGold>=priorityGoldEfficiency)
    return {entered:true,ok:true,reason:"SMALL FAST FLIP",tier:"small"};
 
- return {entered:true,ok:false,reason:`NET ${rs.netProfitDiv.toFixed(2)}D quá nhỏ`,tier:"skip"};
+ return {entered:true,ok:false,reason:`REAL NET ${rs.economicNetDiv.toFixed(2)}D quá nhỏ`,tier:"skip"};
 }
 function batchRecommendation(x){
  const cf=capitalFit(x);
@@ -479,7 +475,7 @@ function simpleDecision(x){
  const rs=x.rs;
  const priorityGold=n(buyNowGoldD.value,7);
  const priorityNet=n(buyNowRoi.value,1);
- if(rs.netPer1MGold>=priorityGold && rs.netProfitDiv>=priorityNet)return"ƯU TIÊN";
+ if(rs.netPer1MGold>=priorityGold && rs.economicNetDiv>=priorityNet)return"ƯU TIÊN";
  return"CÂN NHẮC";
 }
 function simpleDecisionClass(d){return d==="ƯU TIÊN"?"decisionPriority":d==="CÂN NHẮC"?"decisionConsider":d==="BỎ QUA"?"decisionSkip":"unknown"}
@@ -487,7 +483,7 @@ function init(){
  const c=window.POE_FLIP_CONFIG||{},saved=localStorage.getItem("poeWorkerUrl");
  workerUrl.value=saved||c.workerUrl||"";
  [...EX,...ST].forEach(([id,label])=>{const l=document.createElement("label");l.innerHTML=`<input type="checkbox" value="${id}" ${DEFAULT.has(id)?"checked":""}> ${label}`;cats.appendChild(l)});
- ["minValue","maxValue","minVol","maxChange","queueSize","targetRoi","buyNowRoi","goldBenchmarkD","goodGoldD","buyNowGoldD","goldBudget","recycleChaosPerDiv","recycleGoldFee","recycleMode","closedLoopMinDPerM","excludeBase","queueOnly","enteredOnly","watchOnly","profitableOnly","hideCrossed"]
+ ["minValue","maxValue","minVol","maxChange","queueSize","targetRoi","buyNowRoi","goldValueDivPerM","goodGoldD","buyNowGoldD","goldBudget","recycleChaosPerDiv","recycleGoldFee","recycleMode","closedLoopMinDPerM","excludeBase","queueOnly","enteredOnly","watchOnly","profitableOnly","hideCrossed"]
  .forEach(id=>document.getElementById(id).addEventListener("input",()=>items.length&&render()));
  [buyChaosPerItemInput,buyItemQty,buyPlus,sellDivQty,sellItemQty,sellMinus,buyGoldPerItem,sellGoldPerDivine,recycleGoldPerDivine,recycleMode,recycleChaosPerDiv].forEach(el=>el.addEventListener("input",previewQuick));
  [buyChaosPerItemInput,buyItemQty,sellDivQty,sellItemQty,buyGoldPerItem,sellGoldPerDivine,recycleGoldPerDivine].forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter")saveQuick()}));
@@ -676,7 +672,7 @@ function realStats(x){
  const divRef=n(divRate.value,0);
  if(!f.buy||!f.sell||!f.buyItem||divRef<=0)return{
    entered:false,...f,profit:null,roi:null,profitPerDiv:null,profitDiv:null,profitPer1MGold:null,
-   qty:0,buyCostChaos:0,sellRevenueDiv:0,recycleDiv:0,netProfitDiv:null,closedLoopGold:0,netPer1MGold:null
+   qty:0,buyCostChaos:0,sellRevenueDiv:0,recycleDiv:0,netProfitDiv:null,closedLoopGold:0,netPer1MGold:null,goldCostDiv:null,economicNetDiv:null,economicRoi:null
  };
 
  const qty=f.buyItem;
@@ -712,13 +708,21 @@ function realStats(x){
    : (n(f.recycleGold,0)>0?n(f.recycleGold,0):n(recycleGoldFee.value));
  const closedLoopGold=f.totalGold+recycleGold;
  const netPer1MGold=closedLoopGold>0?netProfitDiv*1000000/closedLoopGold:null;
+
+ // Economic Gold cost: user values 1M Gold in Divine (default 1D / 1M Gold).
+ const goldValuePerM=Math.max(0,n(document.getElementById("goldValueDivPerM")?.value,1));
+ const goldCostDiv=closedLoopGold/1000000*goldValuePerM;
+ const economicNetDiv=netProfitDiv-goldCostDiv;
+ const capitalDiv=buyCostChaos/divRef;
+ const economicRoi=capitalDiv>0?economicNetDiv/capitalDiv*100:null;
+
  const profitPerDiv=grossProfitChaos/(buyCostChaos/divRef);
 
  return{
    entered:true,...f,qty,buyCostChaos,sellRevenueDiv,
    revenue:f.sell*divRef,profit:grossProfitChaos,roi,profitPerDiv,
    profitDiv:grossProfitDiv,profitPer1MGold:f.totalGold>0?grossProfitDiv*1000000/f.totalGold:null,
-   recycleRate,recycleDiv,recycleGold,closedLoopGold,netProfitDiv,netPer1MGold
+   recycleRate,recycleDiv,recycleGold,closedLoopGold,netProfitDiv,netPer1MGold,goldValuePerM,goldCostDiv,economicNetDiv,economicRoi
  };
 }
 function score(x){
@@ -846,7 +850,7 @@ function capitalFit(x){
 function updateCapitalSummary(){
  const e=document.getElementById("capitalSummary"); if(!e)return;
  const c=capCfg();
- e.innerHTML=c.capital?`Vốn <b>${c.capital.toFixed(1)}D</b> · dự phòng recycle <b>${c.reserve}%</b> · vốn hoạt động <b>${c.usable.toFixed(1)}D</b> · trần/món <b>${Math.min(c.usable,c.per).toFixed(1)}D</b> · batch target <b>${c.batchVolPct}% Liquidity/h</b>. Ranking: Turnover/Liquidity → Recommended Batch Fit → Net D/1M Gold → Net Profit. Potential Batch dùng một phần nhỏ Liquidity/Hour. Chỉ sau khi Faustus đạt ngưỡng lợi nhuận nó mới trở thành Recommended Batch.`:"Nhập vốn Divine để scanner chọn các món phù hợp.";
+ e.innerHTML=c.capital?`Vốn <b>${c.capital.toFixed(1)}D</b> · dự phòng recycle <b>${c.reserve}%</b> · vốn hoạt động <b>${c.usable.toFixed(1)}D</b> · trần/món <b>${Math.min(c.usable,c.per).toFixed(1)}D</b> · batch target <b>${c.batchVolPct}% Liquidity/h</b>. Ranking ưu tiên Turnover/Liquidity, nhưng item đã nhập Faustus phải có Real Net sau Gold > 0. Potential Batch dùng một phần nhỏ Liquidity/Hour. Chỉ sau khi Faustus đạt ngưỡng lợi nhuận nó mới trở thành Recommended Batch.`:"Nhập vốn Divine để scanner chọn các món phù hợp.";
 }
 
 function render(){ updateCapitalSummary();
@@ -855,7 +859,7 @@ function render(){ updateCapitalSummary();
  if(queueOnly.checked)a=a.filter(x=>qkeys.has(keyFor(x)));
  if(enteredOnly.checked)a=a.filter(x=>x.rs.entered);
  if(watchOnly.checked)a=a.filter(x=>watch[keyFor(x)]);
- if(profitableOnly.checked)a=a.filter(x=>x.rs.entered&&x.rs.roi>0);
+ if(profitableOnly.checked)a=a.filter(x=>x.rs.entered&&x.rs.economicNetDiv>0);
  if(hideCrossed.checked)a=a.filter(x=>!isCrossedKey(keyFor(x)));
  count.textContent=`${a.length} items`;rows.innerHTML="";
  a.slice(0,120).forEach(x=>{
@@ -873,6 +877,8 @@ function render(){ updateCapitalSummary();
   </td>
   <td>${x.rs.entered?x.rs.buy.toFixed(2)+"c":"—"}</td><td>${x.rs.entered?x.rs.sell.toFixed(4)+"D":"—"}</td>
   <td class="${x.rs.entered&&x.rs.netProfitDiv>=0?"roi-good":"roi-bad"}">${x.rs.entered?x.rs.netProfitDiv.toFixed(2)+"D":"—"}</td>
+  <td>${x.rs.goldCostDiv!=null?x.rs.goldCostDiv.toFixed(2)+"D":"—"}</td>
+  <td class="${x.rs.economicNetDiv!=null?(x.rs.economicNetDiv>0?"roi-good":"roi-bad"):""}">${x.rs.economicNetDiv!=null?x.rs.economicNetDiv.toFixed(2)+"D":"—"}</td>
   <td class="${x.rs.netPer1MGold!=null?(x.rs.netPer1MGold>=n(buyNowGoldD.value,7)?"roi-good":x.rs.netPer1MGold>=n(goodGoldD.value,5)?"roi-mid":"roi-bad"):""}">${x.rs.netPer1MGold!=null?x.rs.netPer1MGold.toFixed(2)+"D":"—"}</td>
   <td><span class="badge ${simpleDecisionClass(sd)}">${sd}</span></td>
   <td><button class="sec mini analyzeBtn">Analyze</button> <button class="mini crossBtn ${isX?"active":""}">${isX?"Bỏ gạch":"Gạch"}</button></td>`;
@@ -1042,10 +1048,11 @@ function updateSelectedProjection(){
  const rs=realStats(x),dr=n(divRate.value,0);if(!rs.entered){p100.textContent=p500.textContent=p1000.textContent="—";capMeta.textContent="Nhập ratio Faustus trước.";return}
  function project(capD){const capC=capD*dr,qty=Math.floor(capC/rs.buy),profit=qty*rs.profit;return{qty,profitD:profit/dr}}
  const a=project(100),b=project(500),c=project(1000);
+ // Projection remains gross-market scaling; current batch's real closed-loop profit is shown below.
  p100.textContent=`+${a.profitD.toFixed(1)}D`;p500.textContent=`+${b.profitD.toFixed(1)}D`;p1000.textContent=`+${c.profitD.toFixed(1)}D`;
  const gb=n(goldBudget.value,2000000);
  const batches=rs.closedLoopGold>0?Math.floor(gb/rs.closedLoopGold):null;
- capMeta.innerHTML=`<b>${esc(x.name)}</b><br>100D mua ~${a.qty} item · 500D ~${b.qty} · 1000D ~${c.qty}.${batches!=null?`<br>Gold budget ${fmt(gb)} đủ khoảng <b>${batches}</b> closed-loop batch tương tự.`:` <span class="small">Chưa nhập đủ Gold fee.</span>`}<br>Net closed-loop hiện tại: <b>${rs.netProfitDiv.toFixed(2)}D</b> / batch.`;
+ capMeta.innerHTML=`<b>${esc(x.name)}</b><br>100D mua ~${a.qty} item · 500D ~${b.qty} · 1000D ~${c.qty}.${batches!=null?`<br>Gold budget ${fmt(gb)} đủ khoảng <b>${batches}</b> closed-loop batch tương tự.`:` <span class="small">Chưa nhập đủ Gold fee.</span>`}<br>Trade Net: <b>${rs.netProfitDiv.toFixed(2)}D</b> · Gold Cost: <b>${rs.goldCostDiv.toFixed(2)}D</b> · Real Net: <b>${rs.economicNetDiv.toFixed(2)}D</b> / batch.`;
 }
 function ratioCalc(){
  const target=n(document.getElementById("ratio")?.value);
