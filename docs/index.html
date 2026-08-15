@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v6.0.4</title>
+<title>PoE Allflame Flip Scanner v6.0.5</title>
 <style>
 :root{
   --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
@@ -151,12 +151,15 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
  .ratioCandidates{overflow-x:auto !important}
  .ratioCandidate{min-width:500px !important}
 }
+
+#buyGoldPerItem[readonly],#sellGoldPerDivine[readonly]{font-weight:800;color:#60e0a5;background:#0b1615}
+.goldUnknown{color:#ffb45f !important;background:#241b10 !important}
 </style>
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v6.0.4</h1>
-<div class="sub">V6.0.4: bảng ứng viên chỉ tập trung vào <b>Real Net D</b>; bỏ cột Trade Net D và thêm <b>Real Net / vòng</b> để biết lợi nhuận thực của mỗi vòng ratio SELL.</div>
+<h1>PoE Allflame Flip Scanner v6.0.5</h1>
+<div class="sub">V6.0.5: thêm <b>Faustus Gold Fee DB</b>. Buy Gold/item tự lấy theo tên item; Sell lấy Divine tự dùng <b>250 Gold/Divine</b>; Recycle D→C vẫn tự tính theo Chaos × 15.</div>
 
 <div class="card">
   <label>Cloudflare Worker URL</label>
@@ -290,7 +293,7 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 <div id="quickFaustusBackdrop" class="quickModalBackdrop" onclick="closeQuickFaustus()"></div>
 <div id="quickFaustusModal" class="quickModal">
 <div class="quickModalHeader"><b>Quick Faustus Ratio Entry</b><button class="sec" onclick="closeQuickFaustus()">ĐÓNG</button></div>
-<div class="small">Nhập giá Faustus hiện tại. Buy Gold scale theo item, Sell Gold scale theo Divine nhận. Recycle Gold/Divine tự tính từ Faustus D→C theo công thức Chaos × 15 Gold.</div>
+<div class="small">Nhập BUY/SELL ratio. Gold Fee được tự động lấy từ Faustus Gold Fee DB; Divine = 250 Gold và recycle về Chaos dùng Chaos × 15 Gold.</div>
 <label>Item</label><input id="qName" readonly>
 <div style="margin-top:9px"><b class="small">BUY — mua item bằng Chaos</b></div>
 <div class="ratio4" style="margin-top:6px">
@@ -308,9 +311,9 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 </div>
 <div style="margin-top:10px"><b class="small">GOLD FEE — nhập phí cho 1 item</b></div>
 <div class="ratio4" style="margin-top:6px">
-<div><label>Buy Gold / 1 item</label><input id="buyGoldPerItem" type="number" min="0" step="1"></div>
+<div><label>Buy Gold / 1 item (AUTO)</label><input id="buyGoldPerItem" type="number" min="0" step="0.001" readonly><div id="buyGoldDbHint" class="small">Gold Fee DB</div></div>
 <div><label>Buy Gold tổng</label><input id="buyGoldFee" type="number" readonly></div>
-<div><label>Sell Gold / 1 Divine</label><input id="sellGoldPerDivine" type="number" min="0" step="1"></div>
+<div><label>Sell Gold / 1 Divine (AUTO)</label><input id="sellGoldPerDivine" type="number" value="250" readonly><div class="small">Divine Orb = 250 Gold</div></div>
 <div><label>Sell Gold tổng</label><input id="sellGoldFee" type="number" readonly></div>
 </div>
 <div class="ratio4" style="margin-top:7px">
@@ -321,8 +324,8 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 <div><label>Recycle Gold tổng</label><input id="recycleGoldTotal" type="number" readonly></div>
 <div><label>Total Closed-loop Gold</label><input id="closedLoopGoldPreview" type="number" readonly></div>
 </div>
-<div class="small" style="margin-top:5px">Buy Gold scale theo item; Sell Gold scale theo Divine nhận; Recycle Gold scale theo số Divine thực sự đổi về Chaos.</div>
-<button style="margin-top:9px" onclick="saveQuick()">LƯU RATIO + GOLD</button>
+<div class="small" style="margin-top:5px">Gold Fee tự động theo item DB. Nếu DB chưa có item, Buy Gold sẽ hiện trống và scanner ghi UNKNOWN thay vì đoán sai.</div>
+<div class="small" style="margin-top:7px">AUTO DB ưu tiên fee theo tên item. Item chưa có trong DB vẫn cho nhập Buy Gold manual để tránh đoán sai.</div><button style="margin-top:9px" onclick="saveQuick()">LƯU RATIO + GOLD</button>
 </div>
 
 <script src="config.js"></script>
@@ -335,6 +338,28 @@ const EX=[
 ];
 const ST=[["Vial","Vials"]];
 const DEFAULT=new Set(["Currency","Scarab","Astrolabe","AllflameEmber","Runegraft"]);
+const FAUSTUS_GOLD_FEE_DB={"Rogue's Marker":0.001,"Scroll of Wisdom":1,"Portal Scroll":1,"Orb of Transmutation":3,"Orb of Augmentation":5,"Orb of Chance":10,"Orb of Alteration":10,"Chromatic Orb":20,"Jeweller's Orb":10,"Orb of Fusing":15,"Orb of Alchemy":15,"Chaos Orb":15,"Orb of Scouring":15,"Orb of Regret":20,"Vaal Orb":20,"Orb of Binding":20,"Instilling Orb":20,"Orb of Unmaking":20,"Blessed Orb":35,"Enkindling Orb":35,"Regal Orb":20,"Divine Vessel":150,"Exalted Orb":20,"Ancient Orb":250,"Stacked Deck":35,"Valdo's Puzzle Box":300,"Divine Orb":250,"Orb of Annulment":250,"Voidborn Reliquary Key":975,"Reflecting Mist":500,"Tempering Orb":250,"Tailoring Orb":250,"Fracturing Orb":500,"Veiled Chaos Orb":250,"Veiled Exalted Orb":500,"Eternal Orb":6250,"Sacred Orb":250,"Hinekora's Lock":6250,"Mirror of Kalandra":25000,"Eldritch Chaos Orb":525,"Eldritch Exalted Orb":525,"Eldritch Orb of Annulment":525,"Lesser Eldritch Ember":35,"Lesser Eldritch Ichor":35,"Greater Eldritch Ember":50,"Greater Eldritch Ichor":50,"Grand Eldritch Ember":75,"Grand Eldritch Ichor":75,"Exceptional Eldritch Ember":200,"Exceptional Eldritch Ichor":200,"Orb of Conflict":1050,"Mirror Shard":1250,"Armourer's Scrap":25,"Blacksmith's Whetstone":30,"Glassblower's Bauble":50,"Gemcutter's Prism":50,"Shaper's Exalted Orb":500,"Elder's Exalted Orb":500,"Crusader's Exalted Orb":500,"Redeemer's Exalted Orb":500,"Hunter's Exalted Orb":500,"Warlord's Exalted Orb":500,"Awakener's Orb":1000,"Orb of Dominance":1000,"Orb of Remembrance":1000,"Orb of Unravelling":1000,"Orb of Intention":1000,"Tainted Chromatic Orb":75,"Tainted Jeweller's Orb":75,"Tainted Armourer's Scrap":75,"Tainted Blacksmith's Whetstone":100,"Tainted Orb of Fusing":150,"Tainted Mythic Orb":200,"Tainted Chaos Orb":375,"Tainted Exalted Orb":575,"Tainted Divine Teardrop":900,"Volatile Vaal Orb":900,"Foulborn Orb of Augmentation":500,"Foulborn Regal Orb":750,"Foulborn Exalted Orb":1000,"Flesh of Xesht":1000,"Silver Coin":50,"Syndicate Medallion":250,"Message in a Bottle":1000,"Templar Astrolabe":1000,"Fruiting Astrolabe":1000,"Lightless Astrolabe":1000,"Grasping Astrolabe":1000,"Nameless Astrolabe":1000,"Fungal Astrolabe":1000,"Chaotic Astrolabe":1000,"Deceptive Astrolabe":1000,"Timeless Astrolabe":1000,"Runic Astrolabe":1000,"Wild Crystallised Lifeforce":0.125,"Vivid Crystallised Lifeforce":0.125,"Primal Crystallised Lifeforce":0.125,"Sacred Crystallised Lifeforce":125,"Crystallised Rancour":125,"Primitive Chaotic Resonator":5,"Potent Chaotic Resonator":10,"Powerful Chaotic Resonator":15,"Prime Chaotic Resonator":25,"Primitive Alchemical Resonator":5,"Potent Alchemical Resonator":10,"Powerful Alchemical Resonator":15,"Prime Alchemical Resonator":25,"Allflame Ember of Kulemak":500,"Allflame Ember of Resplendence":500,"Allflame Ember of Propagation":500,"Allflame Ember of Flesh":500,"Allflame Ember of the Wildwood":350,"Allflame Ember of the Ethereal":350,"Allflame Ember of the Gilded":350,"Allflame Ember of Toads":350,"Omen of Return":25,"Omen of Death-dancing":25,"Omen of Refreshment":25,"Omen of the Soul Devourer":25,"Omen of Adrenaline":25,"Omen of Death's Door":50,"Omen of Brilliance":50,"Omen of Amelioration":50,"Omen of the Jeweller":50,"Omen of Trichromatism":50,"Omen of Connections":125,"Omen of Fortune":125,"The Immortal":825,"The Sephirot":325,"The Apothecary":1100,"House of Mirrors":1850,"The Doctor":925,"The Nurse":450,"The Fortunate":175,"Divine Beauty":275,"Seven Years Bad Luck":550,"The Price of Devotion":1850,"Unrequited Love":1450,"Brother's Gift":600,"Brother's Stash":600,"Emperor's Luck":10,"Rain of Chaos":5,"Breach Scarab of the Hive":75,"Breach Scarab of the Dreamer":350,"Breach Scarab of Instability":125,"Breach Scarab of the Marshal":100,"Breach Scarab of the Incensed Swarm":350,"Breach Scarab of Resonant Cascade":350,"Kalguuran Scarab":100,"Kalguuran Scarab of Guarded Riches":125,"Kalguuran Scarab of Refinement":350,"Kalguuran Scarab of Enriching":350,"Trarthan Scarab":75,"Trarthan Scarab of Infamy":100,"Trarthan Scarab of Renown":125,"Trarthan Scarab of Surprising Alliances":350,"Cartography Scarab of Escalation":75,"Cartography Scarab of Risk":100,"Cartography Scarab of the Multitude":100,"Cartography Scarab of Corruption":125,"Cartography Scarab of Singularity":125,"Titanic Scarab":75,"Titanic Scarab of Treasures":125,"Titanic Scarab of Legend":350,"Bestiary Scarab":75,"Bestiary Scarab of Duplicating":125,"Bestiary Scarab of the Herd":100,"Bestiary Scarab of the Shadowed Crow":350,"Influencing Scarab of the Shaper":75,"Influencing Scarab of the Elder":75,"Influencing Scarab of Interference":125,"Influencing Scarab of Hordes":100,"Sulphite Scarab":75,"Sulphite Scarab of Greed":100,"Sulphite Scarab of Fumes":125,"Divination Scarab of The Cloister":75,"Divination Scarab of the Cloister":75,"Divination Scarab of Pilfering":125,"Divination Scarab of Plenty":125,"Torment Scarab":75,"Torment Scarab of Peculiarity":100,"Torment Scarab of Release":100,"Torment Scarab of Possession":125,"Ambush Scarab":75,"Ambush Scarab of Hidden Compartments":100,"Ambush Scarab of Potency":100,"Ambush Scarab of Containment":350,"Ambush Scarab of Discernment":125,"Expedition Scarab":75,"Expedition Scarab of Runefinding":100,"Expedition Scarab of Verisium Powder":100,"Expedition Scarab of Archaeology":125,"Expedition Scarab of Infusion":350,"Legion Scarab":75,"Legion Scarab of Officers":125,"Legion Scarab of Treasures":125,"Legion Scarab of The Sekhema":350,"Legion Scarab of Eternal Conflict":350,"Abyss Scarab":75,"Abyss Scarab of Multitudes":100,"Abyss Scarab of Crystals":125,"Abyss Scarab of Descending":125,"Abyss Scarab of the Consort":350,"Anarchy Scarab":75,"Anarchy Scarab of Gigantification":100,"Anarchy Scarab of Partnership":125,"Anarchy Scarab of the Exceptional":350,"Essence Scarab":75,"Essence Scarab of Ascent":125,"Essence Scarab of Calcification":350,"Essence Scarab of Stability":100,"Essence Scarab of Adaptation":350,"Domination Scarab of Apparitions":100,"Domination Scarab of Evolution":125,"Domination Scarab":75,"Domination Scarab of Terrors":350,"Ritual Scarab of Selectiveness":75,"Ritual Scarab of Wisps":100,"Ritual Scarab of Abundance":125,"Ritual Scarab of Corpses":350,"Harvest Scarab":75,"Harvest Scarab of Cornucopia":350,"Harvest Scarab of Doubling":125,"Incursion Scarab":75,"Incursion Scarab of Invasion":100,"Incursion Scarab of Timelines":350,"Incursion Scarab of Champions":125,"Betrayal Scarab":75,"Betrayal Scarab of the Allflame":100,"Betrayal Scarab of Unbreaking":125,"Betrayal Scarab of Reinforcements":100,"Beyond Scarab":75,"Beyond Scarab of Corruption":125,"Beyond Scarab of Haemophilia":125,"Beyond Scarab of the Invasion":125,"Beyond Scarab of Resurgence":125,"Ultimatum Scarab":75,"Ultimatum Scarab of Bribing":100,"Ultimatum Scarab of Dueling":350,"Ultimatum Scarab of Catalysing":500,"Ultimatum Scarab of Inscription":125,"Delirium Scarab":75,"Delirium Scarab of Mania":100,"Delirium Scarab of Paranoia":100,"Delirium Scarab of Neuroses":125,"Delirium Scarab of Delusions":125,"Blight Scarab":75,"Blight Scarab of Bounty":125,"Blight Scarab of the Blightheart":125,"Blight Scarab of Blooming":350,"Blight Scarab of Invigoration":350,"Scarab of Monstrous Lineage":75,"Scarab of Adversaries":75,"Scarab of Divinity":100,"Scarab of Hunted Traitors":100,"Scarab of Stability":125,"Scarab of Wisps":125,"Scarab of the Sinistral":125,"Scarab of the Dextral":125,"Scarab of Radiant Storms":350,"Horned Scarab of Bloodlines":500,"Horned Scarab of Nemeses":125,"Horned Scarab of Preservation":500,"Horned Scarab of Awakening":350,"Horned Scarab of Tradition":350,"Horned Scarab of Glittering":350,"Horned Scarab of Pandemonium":350};
+
+function faustusAutoGoldFee(name,type){
+ const nm=String(name||"").trim();
+ if(Object.prototype.hasOwnProperty.call(FAUSTUS_GOLD_FEE_DB,nm))
+   return {known:true,fee:Number(FAUSTUS_GOLD_FEE_DB[nm]),source:"PoEDB DB"};
+
+ // Rule-based groups with uniform fees.
+ if(type==="Astrolabe" || /\bAstrolabe$/.test(nm))return {known:true,fee:1000,source:"Astrolabe rule"};
+ if(type==="Runegraft" || /^Runegraft of /.test(nm))
+   return {known:true,fee:/Angler/i.test(nm)?5000:500,source:"Runegraft rule"};
+ if(/^Honoured Tattoo |^Journey Tattoo |^Forbidden Tattoo |^Ancestral Tattoo /.test(nm))
+   return {known:true,fee:125,source:"Tattoo special rule"};
+ if(/^Loyalty Tattoo /.test(nm) || / Makanga$/.test(nm))
+   return {known:true,fee:100,source:"Tattoo high-tier rule"};
+ if(/^Primitive .* Resonator$/.test(nm))return {known:true,fee:5,source:"Resonator rule"};
+ if(/^Potent .* Resonator$/.test(nm))return {known:true,fee:10,source:"Resonator rule"};
+ if(/^Powerful .* Resonator$/.test(nm))return {known:true,fee:15,source:"Resonator rule"};
+ if(/^Prime .* Resonator$/.test(nm))return {known:true,fee:25,source:"Resonator rule"};
+ return {known:false,fee:0,source:"UNKNOWN"};
+}
+
 let items=[], autoTimer=null, selectedKey=null;
 let faustus=JSON.parse(localStorage.getItem("poeFaustusRatiosV52")||"{}");
 if(!Object.keys(faustus).length){
@@ -527,8 +552,8 @@ function init(){
  [...EX,...ST].forEach(([id,label])=>{const l=document.createElement("label");l.innerHTML=`<input type="checkbox" value="${id}" ${DEFAULT.has(id)?"checked":""}> ${label}`;cats.appendChild(l)});
  ["minValue","maxValue","minVol","maxChange","queueSize","targetRoi","buyNowRoi","goldValueDivPerM","goodGoldD","buyNowGoldD","goldBudget","recycleChaosPerDiv","recycleGoldFee","recycleMode","closedLoopMinDPerM","excludeBase","queueOnly","enteredOnly","watchOnly","profitableOnly","hideCrossed"]
  .forEach(id=>document.getElementById(id).addEventListener("input",()=>items.length&&render()));
- [buyChaosPerItemInput,buyItemQty,buyPlus,sellDivQty,sellItemQty,sellMinus,buyGoldPerItem,sellGoldPerDivine,recycleMode,recycleChaosPerDiv].forEach(el=>el.addEventListener("input",previewQuick));
- [buyChaosPerItemInput,buyItemQty,sellDivQty,sellItemQty,buyGoldPerItem,sellGoldPerDivine].forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter")saveQuick()}));
+ [buyChaosPerItemInput,buyItemQty,buyPlus,sellDivQty,sellItemQty,sellMinus,buyGoldPerItem,recycleMode,recycleChaosPerDiv].forEach(el=>el.addEventListener("input",previewQuick));
+ [buyChaosPerItemInput,buyItemQty,sellDivQty,sellItemQty,buyGoldPerItem].forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter")saveQuick()}));
  ratioCalc();
  ["ratioTopN","ratioGoldPerDiv","ratioSmallBias","ratioMaxError","maxDen"].forEach(id=>{
    const el=document.getElementById(id);
@@ -706,8 +731,15 @@ function ratioStatsForKey(k){
  const buy=bu>0?bu:0;
  const buyChaosTotal=buy>0&&bi>0?buy*bi:0;
  const sell=sd>0&&si>0?sd/si:0;
- const buyGold=n(f.buyGold),sellGold=n(f.sellGold),totalGold=buyGold+sellGold;
- return{...f,buyItem:bi,buyUnit:bu,buyChaosTotal,sellDiv:sd,sellItem:si,buy,sell,buyGold,sellGold,totalGold};
+ const item=items.find(z=>keyFor(z)===k);
+ const feeInfo=faustusAutoGoldFee(item?.name||"",item?.type||"");
+ const buyGoldPer=feeInfo.known?feeInfo.fee:n(f.buyGoldPerItem,0);
+ const sellGoldPer=250;
+ const buyGold=buyGoldPer>0&&bi>0?buyGoldPer*bi:n(f.buyGold,0);
+ const sellGold=sellGoldPer>0&&sd>0?sellGoldPer*sd:n(f.sellGold,0);
+ const totalGold=buyGold+sellGold;
+ return{...f,buyItem:bi,buyUnit:bu,buyChaosTotal,sellDiv:sd,sellItem:si,buy,sell,buyGold,sellGold,totalGold,
+   autoGoldKnown:feeInfo.known,buyGoldPerItem:buyGoldPer,sellGoldPerDivine:sellGoldPer};
 }
 function realStats(x){
  const f=ratioStatsForKey(keyFor(x));
@@ -1004,19 +1036,37 @@ function resetCurrentFaustusForNewScan(){
 function clearFaustus(){if(confirm("Xóa toàn bộ ratio Faustus đã nhập?")){faustus={};localStorage.removeItem("poeFaustusRatiosV52");render();clearQuick()}}
 function openQuickFaustus(){const m=document.getElementById("quickFaustusModal"),b=document.getElementById("quickFaustusBackdrop");if(m)m.classList.add("show");if(b)b.classList.add("show");}
 function closeQuickFaustus(){const m=document.getElementById("quickFaustusModal"),b=document.getElementById("quickFaustusBackdrop");if(m)m.classList.remove("show");if(b)b.classList.remove("show");}
+
+function currentSelectedItem(){
+ return selectedKey?items.find(z=>keyFor(z)===selectedKey):null;
+}
+function applyAutoGoldFee(){
+ const x=currentSelectedItem();
+ const info=faustusAutoGoldFee(x?.name||qName.value,x?.type||"");
+ const hint=document.getElementById("buyGoldDbHint");
+ buyGoldPerItem.readOnly=info.known;
+ buyGoldPerItem.classList.toggle("goldUnknown",!info.known);
+ if(info.known){
+   buyGoldPerItem.value=info.fee;
+   if(hint)hint.textContent=`AUTO DB · ${info.source}`;
+ }else{
+   const f=selectedKey?(faustus[selectedKey]||{}):{};
+   if(!buyGoldPerItem.value)buyGoldPerItem.value=f.buyGoldPerItem||"";
+   if(hint)hint.textContent="DB chưa có item này · có thể nhập manual";
+ }
+ sellGoldPerDivine.value=250;
+ return info;
+}
+
 function selectItem(x){
  selectedKey=keyFor(x);qName.value=x.name;
  const f=faustus[selectedKey]||{};
  buyChaosPerItemInput.value=f.buyUnit||((n(f.buyChaos)>0&&n(f.buyItem)>0)?(n(f.buyChaos)/n(f.buyItem)).toFixed(4):"");
  buyItemQty.value=f.buyItem||"";buyPlus.value=f.buyPlus||"0";
  sellDivQty.value=f.sellDiv||"";sellItemQty.value=f.sellItem||"";sellMinus.value=f.sellMinus||"0";
- buyGoldPerItem.value=f.buyGoldPerItem||((f.buyGold&&f.buyItem)?(n(f.buyGold)/n(f.buyItem)).toFixed(2):"");
- {
-   let savedDiv=n(f.sellDiv);
-   if(n(f.sellMinus)===1 && savedDiv>0)savedDiv=Math.max(0,savedDiv-1);
-   sellGoldPerDivine.value=f.sellGoldPerDivine
-     || ((f.sellGold&&savedDiv)?(n(f.sellGold)/savedDiv).toFixed(2):"");
- }
+ buyGoldPerItem.value="";
+ sellGoldPerDivine.value=250;
+ applyAutoGoldFee();
  updateAutoRecycleGoldPerDivine();
  updateGoldTotals();
  previewQuick();updateSelectedProjection();openQuickFaustus();
@@ -1031,6 +1081,7 @@ function updateAutoRecycleGoldPerDivine(){
 }
 
 function updateGoldTotals(){
+ applyAutoGoldFee();
  updateAutoRecycleGoldPerDivine();
  const buyQty=Math.max(0,Math.floor(n(buyItemQty.value)));
  const buyPer=Math.max(0,n(buyGoldPerItem.value));
@@ -1096,7 +1147,7 @@ function saveQuick(){
  faustus[selectedKey]={
   buyUnit:n(buyChaosPerItemInput.value)||"",buyItem:n(buyItemQty.value)||"",buyPlus:n(buyPlus.value)||0,
   sellDiv:n(sellDivQty.value)||"",sellItem:n(sellItemQty.value)||"",sellMinus:n(sellMinus.value)||0,
-  buyGoldPerItem:n(buyGoldPerItem.value)||0,sellGoldPerDivine:n(sellGoldPerDivine.value)||0,
+  buyGoldPerItem:n(buyGoldPerItem.value)||0,sellGoldPerDivine:250,
   recycleGoldPerDivine:n(recycleGoldPerDivine.value)||0,
   buyGold:n(buyGoldFee.value)||0,sellGold:n(sellGoldFee.value)||0,
   recycleGold:n(recycleGoldTotal.value)||0
