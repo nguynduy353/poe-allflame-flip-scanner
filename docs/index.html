@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v6.0.6</title>
+<title>PoE Allflame Flip Scanner v6.0.7</title>
 <style>
 :root{
   --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
@@ -158,8 +158,8 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v6.0.6</h1>
-<div class="sub">V6.0.6: sửa tra cứu Gold Fee DB bằng <b>normalized item name</b> để các tên như Valdo’s/Valdos vẫn khớp cùng một item; đồng thời dọn gọn text trong Quick Faustus.</div>
+<h1>PoE Allflame Flip Scanner v6.0.7</h1>
+<div class="sub">V6.0.7: sửa normalize/dedupe Scarab để không làm mất các biến thể như <b>Trarthan Scarab of Infamy</b>; thêm diagnostic sau scan nếu item có trong raw data nhưng bị filter.</div>
 
 <div class="card">
   <label>Cloudflare Worker URL</label>
@@ -452,15 +452,37 @@ function isBlockedItemName(name){
 // Những tên này không nên xuất hiện như candidate riêng ở Faustus hiện tại.
 // Ta remap legacy name sang tên hiện hành, sau đó dedupe theo category + canonical name.
 function canonicalName(raw){
-  const p=prettyName(raw);
-  return LEGACY_NAME_MAP.get(raw) || LEGACY_NAME_MAP.get(p) || p;
+  const original=String(raw||"").trim();
+  const p=prettyName(original);
+  let name=LEGACY_NAME_MAP.get(original) || LEGACY_NAME_MAP.get(p) || p;
+
+  // Explicitly normalize known current Faustus names without collapsing distinct suffixes.
+  const nk=String(name).normalize("NFKD").replace(/[’‘`´]/g,"'").trim().toLowerCase();
+  const aliases={
+    "trarthan scarab of infamy":"Trarthan Scarab of Infamy",
+    "trarthan-scarab-of-infamy":"Trarthan Scarab of Infamy",
+    "trarthan scarab of renown":"Trarthan Scarab of Renown",
+    "trarthan-scarab-of-renown":"Trarthan Scarab of Renown",
+    "trarthan scarab of surprising alliances":"Trarthan Scarab of Surprising Alliances",
+    "trarthan-scarab-of-surprising-alliances":"Trarthan Scarab of Surprising Alliances"
+  };
+  return aliases[nk]||name;
 }
 
+function dedupeCandidateKey(x){
+ const nm=String(x?.name||"")
+   .normalize("NFKD")
+   .replace(/[’‘`´']/g,"")
+   .replace(/\s+/g," ")
+   .trim()
+   .toLowerCase();
+ return `${String(x?.type||"").toLowerCase()}::${nm}`;
+}
 function dedupeItems(arr){
   const m=new Map();
   for(const x of arr){
     if(isBlockedItemName(x.name))continue;
-    const k=`${x.type}::${x.name}`;
+    const k=dedupeCandidateKey(x);
     const prev=m.get(k);
     if(!prev){
       m.set(k,x);
@@ -650,9 +672,9 @@ function normalizeExchange(wrapper,type){
   const value=chaosValue>0?chaosValue:primaryValue;
   const vol=n(x.volumePerHour??x.volumePrimaryValue??x.volume??x.tradeVolume,0);
   const ch=n(x.change7d??x.sparkline?.totalChange??x.sparkLine?.totalChange,sparkChange(x.sparkline||x.sparkLine));
-  const rawName=m.name||m.text||x.name||x.currencyTypeName||String(x.id);
+  const rawName=x.name||x.currencyTypeName||m.name||m.text||String(x.id);
   return{
-    name:canonicalName(rawName),icon:m.icon||x.icon||"",
+    name:canonicalName(rawName),rawName:String(rawName||""),icon:m.icon||x.icon||"",
     value,
     ...(chaosValue>0?{chaosValue}:{}),
     primaryValue,vol,change:ch,type,kind:"exchange"
@@ -704,7 +726,8 @@ async function scanAll(){
    const rateMsg=divineDetection.ok
      ? `<br><span class="ok">✓ Market Divine Rate AUTO: <b>${divineDetection.rate.toFixed(2)}c / 1D</b> (poe.ninja Currency)</span>`
      : `<br><span class="bad">✗ Không detect được Divine rate. Valuation/Capital Fit sẽ không dùng rate cũ.</span>`;
-   setStatus(`<span class="ok">✓ Quét xong: ${items.length} item sau normalize/dedupe.</span> ${cached}/${selected.length} cache 60s. Lấy lúc: <b>${esc(lastFetch||new Date().toISOString())}</b>${rateMsg}${fails.length?`<br><span class="orange">Có ${fails.length} category lỗi:</span> ${esc(fails.join(" | "))}`:""}`);
+   const diagText=scanDiagnosticText();
+   setStatus(`<span class="ok">✓ Quét xong: ${items.length} item sau normalize/dedupe.</span> ${cached}/${selected.length} cache 60s. Lấy lúc: <b>${esc(lastFetch||new Date().toISOString())}</b>${rateMsg}${fails.length?`<br><span class="orange">Có ${fails.length} category lỗi:</span> ${esc(fails.join(" | "))}`:""}<br><span class="small">Diagnostic: ${esc(diagText)}</span>`);
  }catch(e){
    console.error("scanAll()",e);
    setStatus(`<span class="bad">✗ Quét bị dừng:</span> ${esc(e.message)}`);
@@ -840,6 +863,33 @@ function toggleCrossed(k){
  else crossed[k]=true;
  localStorage.setItem("poeCrossedItemsV58",JSON.stringify(crossed));
  render();
+}
+
+
+function candidateFilterReason(x){
+ if(!x)return"KHÔNG CÓ TRONG DATA";
+ if(isBlockedItemName(x.name))return"BLACKLIST";
+ if(x.value<n(minValue.value))return`VALUE ${x.value}c < MIN ${n(minValue.value)}c`;
+ if(x.value>n(maxValue.value,1e99))return`VALUE ${x.value}c > MAX`;
+ if(x.vol<n(minVol.value))return`VOLUME ${x.vol} < MIN ${n(minVol.value)}`;
+ if(Math.abs(x.change)>n(maxChange.value,1e99))return`7D ${x.change.toFixed(1)}% > MAX`;
+ if(excludeBase.checked&&isBaseCurrency(x))return"BASE CURRENCY";
+ if(!capitalFit(x).ok)return"CAPITAL FIT";
+ return"OK";
+}
+function scanDiagnosticText(){
+ const targets=["Trarthan Scarab of Infamy"];
+ const parts=[];
+ for(const name of targets){
+   const key=normalizeGoldFeeName(name);
+   const found=items.find(x=>normalizeGoldFeeName(x.name)===key || normalizeGoldFeeName(x.rawName)===key);
+   if(found){
+     parts.push(`${name}: ${candidateFilterReason(found)} · ${found.value.toFixed(2)}c · Vol ${fmt(found.vol)}`);
+   }else{
+     parts.push(`${name}: KHÔNG CÓ TRONG RESPONSE SCARAB`);
+   }
+ }
+ return parts.join(" | ");
 }
 
 function buildRows(){
