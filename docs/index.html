@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v6.0.7</title>
+<title>PoE Allflame Flip Scanner v6.0.8</title>
 <style>
 :root{
   --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
@@ -154,12 +154,16 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 
 #buyGoldPerItem[readonly],#sellGoldPerDivine[readonly]{font-weight:800;color:#60e0a5;background:#0b1615}
 .goldUnknown{color:#ffb45f !important;background:#241b10 !important}
+
+.ratio3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+#itemSearch{font-weight:700}
+@media(max-width:700px){.ratio3{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v6.0.7</h1>
-<div class="sub">V6.0.7: sửa normalize/dedupe Scarab để không làm mất các biến thể như <b>Trarthan Scarab of Infamy</b>; thêm diagnostic sau scan nếu item có trong raw data nhưng bị filter.</div>
+<h1>PoE Allflame Flip Scanner v6.0.8</h1>
+<div class="sub">V6.0.8: bỏ giới hạn vốn khỏi scanner, thêm <b>tìm kiếm item nhanh</b>, sửa Cloister/Trarthan normalize, và đơn giản Quick Faustus: Buy Chaos bước 1c, bỏ +1c và -1 Divine.</div>
 
 <div class="card">
   <label>Cloudflare Worker URL</label>
@@ -201,14 +205,7 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
     </select>
   </div>
   <div><label>Closed-loop min D / 1M Gold</label><input id="closedLoopMinDPerM" type="number" value="5" step="0.1"></div>
- </div>
-
- <div class="capitalRow">
-<label>Vốn hiện có (Divine)<input id="capitalDiv" type="number" min="0" step="1" value="100"></label>
-<label>Dùng tối đa vốn / item %<input id="capitalUsePct" type="number" min="5" max="100" step="5" value="25"></label>
-<label>Giữ vốn recycle %<input id="capitalReservePct" type="number" min="0" max="80" step="5" value="20"></label>
-</div>
-<div id="capitalSummary" class="capitalSummary">Nhập vốn Divine để scanner chọn các món phù hợp.</div><div class="small" style="margin-top:4px"><b>* Potential</b> = chỉ ước tính theo vốn + liquidity, chưa xác nhận lợi nhuận Faustus.</div><div class="small" style="margin-top:4px"><b>Soft Gate:</b> Net Profit thấp hơn Min vẫn có thể được CÂN NHẮC nếu Liquidity cao và Net D/1M Gold mạnh. Chỉ hard-skip khi Net ≤ 0 hoặc Gold efficiency dưới ngưỡng.</div>
+ </div><div class="small" style="margin-top:4px"><b>Soft Gate:</b> Net Profit thấp hơn Min vẫn có thể được CÂN NHẮC nếu Liquidity cao và Net D/1M Gold mạnh. Chỉ hard-skip khi Net ≤ 0 hoặc Gold efficiency dưới ngưỡng.</div>
 
 <div class="capitalRow">
   <label>Batch % của Liquidity/Hour
@@ -220,6 +217,10 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
   <label>Min Recommended Capital (D)
     <input id="minRecCapital" type="number" min="0" step="0.5" value="2">
   </label>
+</div>
+<div style="margin-top:10px">
+  <label>Tìm nhanh item</label>
+  <input id="itemSearch" type="search" placeholder="Nhập tên item... ví dụ Trarthan Scarab of Infamy">
 </div>
 <div id="cats" class="checks" style="margin-top:11px"></div>
  <div class="checks" style="margin-top:9px">
@@ -296,18 +297,18 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 <div class="small">Nhập BUY/SELL ratio. Gold Fee được tự động lấy từ Faustus Gold Fee DB; Divine = 250 Gold và recycle về Chaos dùng Chaos × 15 Gold.</div>
 <label>Item</label><input id="qName" readonly>
 <div style="margin-top:9px"><b class="small">BUY — mua item bằng Chaos</b></div>
-<div class="ratio4" style="margin-top:6px">
-<div><label>Chaos / item</label><input id="buyChaosPerItemInput" type="number" min="0" step="0.01"></div>
+<div class="ratio3" style="margin-top:6px">
+<div><label>Chaos / item</label><input id="buyChaosPerItemInput" type="number" min="0" step="1"></div>
 <div><label>Số lượng item</label><input id="buyItemQty" type="number" min="1" step="1"></div>
 <div><label>Tổng Chaos</label><input id="buyChaosTotal" readonly></div>
-<div><label>+1 c/item?</label><select id="buyPlus"><option value="0">Không</option><option value="1">+1 c/item</option></select></div>
+
 </div>
 <div style="margin-top:10px"><b class="small">SELL — bán item lấy Divine</b></div>
-<div class="ratio4" style="margin-top:6px">
+<div class="ratio3" style="margin-top:6px">
 <div><label>Divine</label><input id="sellDivQty" type="number" min="1" step="1"></div>
 <div><label>Item</label><input id="sellItemQty" type="number" min="1" step="1"></div>
 <div><label>D/item</label><input id="sellPerItem" readonly></div>
-<div><label>-1 Divine?</label><select id="sellMinus"><option value="0">Không</option><option value="1">-1 Divine tổng</option></select></div>
+
 </div>
 
 <div class="ratio4" style="margin-top:6px">
@@ -464,7 +465,9 @@ function canonicalName(raw){
     "trarthan scarab of renown":"Trarthan Scarab of Renown",
     "trarthan-scarab-of-renown":"Trarthan Scarab of Renown",
     "trarthan scarab of surprising alliances":"Trarthan Scarab of Surprising Alliances",
-    "trarthan-scarab-of-surprising-alliances":"Trarthan Scarab of Surprising Alliances"
+    "trarthan-scarab-of-surprising-alliances":"Trarthan Scarab of Surprising Alliances",
+    "divination scarab of the cloister":"Divination Scarab of The Cloister",
+    "divination-scarab-of-the-cloister":"Divination Scarab of The Cloister"
   };
   return aliases[nk]||name;
 }
@@ -594,7 +597,8 @@ function init(){
  [...EX,...ST].forEach(([id,label])=>{const l=document.createElement("label");l.innerHTML=`<input type="checkbox" value="${id}" ${DEFAULT.has(id)?"checked":""}> ${label}`;cats.appendChild(l)});
  ["minValue","maxValue","minVol","maxChange","queueSize","targetRoi","buyNowRoi","goldValueDivPerM","goodGoldD","buyNowGoldD","goldBudget","recycleChaosPerDiv","recycleGoldFee","recycleMode","closedLoopMinDPerM","excludeBase","queueOnly","enteredOnly","watchOnly","profitableOnly","hideCrossed"]
  .forEach(id=>document.getElementById(id).addEventListener("input",()=>items.length&&render()));
- [buyChaosPerItemInput,buyItemQty,buyPlus,sellDivQty,sellItemQty,sellMinus,buyGoldPerItem,recycleMode,recycleChaosPerDiv].forEach(el=>el.addEventListener("input",previewQuick));
+ const itemSearchEl=document.getElementById("itemSearch"); if(itemSearchEl)itemSearchEl.addEventListener("input",()=>items.length&&render());
+ [buyChaosPerItemInput,buyItemQty,sellDivQty,sellItemQty,buyGoldPerItem,recycleMode,recycleChaosPerDiv].forEach(el=>el.addEventListener("input",previewQuick));
  [buyChaosPerItemInput,buyItemQty,sellDivQty,sellItemQty,buyGoldPerItem].forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter")saveQuick()}));
  ratioCalc();
  ["ratioTopN","ratioGoldPerDiv","ratioSmallBias","ratioMaxError","maxDen"].forEach(id=>{
@@ -602,10 +606,10 @@ function init(){
    if(el)el.addEventListener("input",ratioCalc);
  });
  updateDraftInfo();
-["capitalDiv","capitalUsePct","capitalReservePct","batchVolPct","maxRecQty","minRecCapital"].forEach(id=>{
+["batchVolPct","maxRecQty","minRecCapital"].forEach(id=>{
  const e=document.getElementById(id),v=localStorage.getItem("poe_"+id);
  if(v!==null)e.value=v;
- e.addEventListener("change",()=>{localStorage.setItem("poe_"+id,e.value);render();});
+ e.addEventListener("change",()=>{localStorage.setItem("poe_"+id,e.value);items.length&&render()});
 });
 updateCapitalSummary();
 
@@ -769,8 +773,6 @@ function ratioStatsForKey(k){
  const f=faustus[k]||{};
  let bi=n(f.buyItem),bu=n(f.buyUnit),sd=n(f.sellDiv),si=n(f.sellItem);
  if(!bu && n(f.buyChaos)>0 && bi>0)bu=n(f.buyChaos)/bi;
- if(n(f.buyPlus)===1&&bu>0)bu+=1;
- if(n(f.sellMinus)===1&&sd>1)sd-=1;
  const buy=bu>0?bu:0;
  const buyChaosTotal=buy>0&&bi>0?buy*bi:0;
  const sell=sd>0&&si>0?sd/si:0;
@@ -874,11 +876,10 @@ function candidateFilterReason(x){
  if(x.vol<n(minVol.value))return`VOLUME ${x.vol} < MIN ${n(minVol.value)}`;
  if(Math.abs(x.change)>n(maxChange.value,1e99))return`7D ${x.change.toFixed(1)}% > MAX`;
  if(excludeBase.checked&&isBaseCurrency(x))return"BASE CURRENCY";
- if(!capitalFit(x).ok)return"CAPITAL FIT";
  return"OK";
 }
 function scanDiagnosticText(){
- const targets=["Trarthan Scarab of Infamy"];
+ const targets=["Trarthan Scarab of Infamy","Divination Scarab of The Cloister"];
  const parts=[];
  for(const name of targets){
    const key=normalizeGoldFeeName(name);
@@ -896,7 +897,6 @@ function buildRows(){
  let a=items.filter(x=>!isBlockedItemName(x.name)).filter(x=>x.value>=n(minValue.value)&&x.value<=n(maxValue.value,1e99)&&x.vol>=n(minVol.value)&&Math.abs(x.change)<=n(maxChange.value,1e99))
  .filter(x=>!excludeBase.checked||!isBaseCurrency(x))
  .map(x=>{const s=score(x),rs=realStats(x);return{...x,s,g:grade(x,s),rs,d:decision(rs)}});
- a=a.filter(x=>capitalFit(x).ok);
  a.sort((a,b)=>{
    // 1) turnover/liquidity remains primary
    if(b.vol!==a.vol)return b.vol-a.vol;
@@ -915,7 +915,7 @@ function buildRows(){
 }
 function queueRows(all){
  return[...all]
-   .filter(x=>!x.rs.entered && !isCrossedKey(keyFor(x)) && capitalFit(x).ok)
+   .filter(x=>!x.rs.entered && !isCrossedKey(keyFor(x)))
    .sort((a,b)=>{
       if(b.vol!==a.vol)return b.vol-a.vol;
       const ca=capitalFit(a),cb=capitalFit(b);
@@ -926,14 +926,11 @@ function queueRows(all){
 }
 
 function capCfg(){
- const capital=Math.max(0,+document.getElementById("capitalDiv").value||0);
- const use=Math.min(100,Math.max(5,+document.getElementById("capitalUsePct").value||25));
- const reserve=Math.min(80,Math.max(0,+document.getElementById("capitalReservePct").value||20));
  const rate=Math.max(0,+document.getElementById("divRate").value||0);
  const batchVolPct=Math.max(0.001,+document.getElementById("batchVolPct")?.value||0.05);
  const maxRecQty=Math.max(1,Math.floor(+document.getElementById("maxRecQty")?.value||200));
  const minRecCapital=Math.max(0,+document.getElementById("minRecCapital")?.value||2);
- return {capital,use,reserve,rate,batchVolPct,maxRecQty,minRecCapital,usable:capital*(1-reserve/100),per:capital*use/100};
+ return {rate,batchVolPct,maxRecQty,minRecCapital};
 }
 
 function effectiveChaosValue(x){
@@ -953,49 +950,35 @@ function capitalFit(x){
  const chaos=effectiveChaosValue(x);
  const unitD=c.rate>0?chaos/c.rate:0;
  const vol=Math.max(0,Number(x.vol ?? x.volume ?? x.liquidity ?? 0));
- if(!c.capital || c.rate<=0 || !unitD || unitD<=0){
-   return {ok:true,qty:0,cost:0,unitD,maxQty:0,maxCost:0,recQty:0,recCost:0,score:0,label:"—"};
+
+ if(c.rate<=0 || !unitD || unitD<=0){
+   return {ok:true,qty:0,cost:0,unitD,maxQty:c.maxRecQty,maxCost:0,recQty:0,recCost:0,score:0,label:"—"};
  }
 
- // Absolute maximum allowed by user's capital policy.
- const budget=Math.max(0,Math.min(c.usable,c.per));
- const maxQty=Math.floor(budget/unitD);
- const maxCost=maxQty*unitD;
- if(maxQty<1){
-   return {ok:false,qty:0,cost:0,unitD,maxQty:0,maxCost:0,recQty:0,recCost:0,score:-999,label:"VƯỢT VỐN"};
- }
-
- // Recommended batch is intentionally smaller:
- // a tiny fraction of poe.ninja hourly liquidity, capped by user max qty and capital-fit qty.
- const liquidityQty = vol>0 ? Math.max(1,Math.floor(vol*(c.batchVolPct/100))) : 1;
- let recQty=Math.max(1,Math.min(maxQty,c.maxRecQty,liquidityQty));
+ // No capital constraint: batch is driven by turnover/liquidity and user Max Recommended Qty.
+ const liquidityQty=vol>0?Math.max(1,Math.floor(vol*(c.batchVolPct/100))):1;
+ let recQty=Math.max(1,Math.min(c.maxRecQty,liquidityQty));
  let recCost=recQty*unitD;
 
- // If recommended batch is too tiny in capital terms, scale upward when liquidity/capital allow it.
+ // Keep a practical minimum batch value when possible, without exceeding Max Recommended Qty.
  if(recCost<c.minRecCapital && unitD>0){
    const minQty=Math.ceil(c.minRecCapital/unitD);
-   recQty=Math.min(maxQty,c.maxRecQty,Math.max(recQty,minQty));
+   recQty=Math.min(c.maxRecQty,Math.max(recQty,minQty));
    recCost=recQty*unitD;
  }
 
- // Recommended Batch Fit score now rewards a small, repeatable batch rather than spending full budget.
- const budgetShare=budget>0?Math.min(1,recCost/budget):0;
  const turnoverScore=vol>0?Math.min(1,Math.log10(vol+1)/6):0;
- const diversificationScore=1-Math.min(1,budgetShare);
- const score=turnoverScore*55 + diversificationScore*30 + Math.min(1,recQty/20)*15;
+ const batchScore=Math.min(1,recQty/20);
+ const score=turnoverScore*75 + batchScore*25;
  const label=score>=70?"NHANH":score>=50?"ỔN":"NHỎ";
 
  return {
    ok:true,qty:recQty,cost:recCost,unitD,
-   maxQty,maxCost,recQty,recCost,
-   liquidityQty,score,label
+   maxQty:c.maxRecQty,maxCost:c.maxRecQty*unitD,
+   recQty,recCost,liquidityQty,score,label
  };
 }
-function updateCapitalSummary(){
- const e=document.getElementById("capitalSummary"); if(!e)return;
- const c=capCfg();
- e.innerHTML=c.capital?`Vốn <b>${c.capital.toFixed(1)}D</b> · dự phòng recycle <b>${c.reserve}%</b> · vốn hoạt động <b>${c.usable.toFixed(1)}D</b> · trần/món <b>${Math.min(c.usable,c.per).toFixed(1)}D</b> · batch target <b>${c.batchVolPct}% Liquidity/h</b>. Ranking ưu tiên Turnover/Liquidity, nhưng item đã nhập Faustus phải có Real Net sau Gold > 0. Potential Batch dùng một phần nhỏ Liquidity/Hour. Chỉ sau khi Faustus đạt ngưỡng lợi nhuận nó mới trở thành Recommended Batch.`:"Nhập vốn Divine để scanner chọn các món phù hợp.";
-}
+function updateCapitalSummary(){}
 
 function render(){ updateCapitalSummary();
  const all=buildRows(),queue=queueRows(all),qkeys=new Set(queue.map(keyFor));
@@ -1005,6 +988,8 @@ function render(){ updateCapitalSummary();
  if(watchOnly.checked)a=a.filter(x=>watch[keyFor(x)]);
  if(profitableOnly.checked)a=a.filter(x=>x.rs.entered&&x.rs.economicNetDiv>0);
  if(hideCrossed.checked)a=a.filter(x=>!isCrossedKey(keyFor(x)));
+ const searchTerm=normalizeGoldFeeName(document.getElementById("itemSearch")?.value||"");
+ if(searchTerm)a=a.filter(x=>normalizeGoldFeeName(x.name).includes(searchTerm));
  count.textContent=`${a.length} items`;rows.innerHTML="";
  a.slice(0,120).forEach(x=>{
   const tr=document.createElement("tr"),cc=x.change>0?"up":x.change<0?"down":"",k=keyFor(x),star=watch[k]?"on":"",rc=x.rs.entered?(x.rs.roi>=10?"roi-good":x.rs.roi>0?"roi-mid":"roi-bad"):"";
@@ -1014,10 +999,10 @@ function render(){ updateCapitalSummary();
   <td>${fmt(x.vol)}</td>
   <td class="${br.mode==="recommended"?(br.qty>=10?"roi-good":br.qty>=3?"roi-mid":"roi-bad"):br.mode==="blocked"?"roi-bad":"roi-mid"}"
       title="${br.mode==="potential"
- ?`Potential Qty${br.aligned?.ratioItems?` · ${br.aligned.rounds} vòng × ${br.aligned.ratioItems} item`:""} · Max theo vốn: ${cf.maxQty||0}`
+ ?`Potential Qty${br.aligned?.ratioItems?` · ${br.aligned.rounds} vòng × ${br.aligned.ratioItems} item`:""} · Max batch: ${cf.maxQty||0}`
  :br.mode==="blocked"
  ?`Không đề xuất: ${br.gate.reason}`
- :`Recommended (${br.gate.reason})${br.aligned?.ratioItems?` · ${br.aligned.rounds} vòng × ${br.aligned.ratioItems} item`:""} · Max theo vốn: ${cf.maxQty||0}`}">
+ :`Recommended (${br.gate.reason})${br.aligned?.ratioItems?` · ${br.aligned.rounds} vòng × ${br.aligned.ratioItems} item`:""} · Max batch: ${cf.maxQty||0}`}">
       ${br.mode==="blocked"?"0":(br.qty||"—")}${br.mode==="potential"&&br.qty?"*":""}
   </td>
   <td title="${br.mode==="potential"
@@ -1132,8 +1117,8 @@ function selectItem(x){
  selectedKey=keyFor(x);qName.value=x.name;
  const f=faustus[selectedKey]||{};
  buyChaosPerItemInput.value=f.buyUnit||((n(f.buyChaos)>0&&n(f.buyItem)>0)?(n(f.buyChaos)/n(f.buyItem)).toFixed(4):"");
- buyItemQty.value=f.buyItem||"";buyPlus.value=f.buyPlus||"0";
- sellDivQty.value=f.sellDiv||"";sellItemQty.value=f.sellItem||"";sellMinus.value=f.sellMinus||"0";
+ buyItemQty.value=f.buyItem||"";
+ sellDivQty.value=f.sellDiv||"";sellItemQty.value=f.sellItem||"";
  buyGoldPerItem.value="";
  sellGoldPerDivine.value=250;
  applyAutoGoldFee();
@@ -1141,7 +1126,7 @@ function selectItem(x){
  updateGoldTotals();
  previewQuick();updateSelectedProjection();openQuickFaustus();
 }
-function clearQuick(){selectedKey=null;qName.value="";buyChaosPerItemInput.value=buyItemQty.value=sellDivQty.value=sellItemQty.value=buyGoldPerItem.value=sellGoldPerDivine.value=recycleGoldPerDivine.value=buyGoldFee.value=sellGoldFee.value=recycleDivPreview.value=recycleGoldTotal.value=closedLoopGoldPreview.value="";buyPlus.value=sellMinus.value="0";buyChaosTotal.value=sellPerItem.value=""}
+function clearQuick(){selectedKey=null;qName.value="";buyChaosPerItemInput.value=buyItemQty.value=sellDivQty.value=sellItemQty.value=buyGoldPerItem.value=sellGoldPerDivine.value=recycleGoldPerDivine.value=buyGoldFee.value=sellGoldFee.value=recycleDivPreview.value=recycleGoldTotal.value=closedLoopGoldPreview.value="";buyChaosTotal.value=sellPerItem.value=""}
 
 function updateAutoRecycleGoldPerDivine(){
  const chaosPerDiv=Math.max(0,n(recycleChaosPerDiv.value));
@@ -1157,7 +1142,6 @@ function updateGoldTotals(){
  const buyPer=Math.max(0,n(buyGoldPerItem.value));
 
  let sellDivRaw=Math.max(0,n(sellDivQty.value));
- if(n(sellMinus.value)===1 && sellDivRaw>0)sellDivRaw=Math.max(0,sellDivRaw-1);
  const sellPerDiv=Math.max(0,n(sellGoldPerDivine.value));
 
  const buyGold=buyPer&&buyQty ? Math.round(buyPer*buyQty) : 0;
@@ -1166,7 +1150,6 @@ function updateGoldTotals(){
  sellGoldFee.value=sellGold||"";
 
  let buyUnit=n(buyChaosPerItemInput.value);
- if(n(buyPlus.value)===1 && buyUnit>0)buyUnit+=1;
  const buyChaosTotal=buyUnit>0&&buyQty>0?buyUnit*buyQty:0;
 
  const marketRate=n(divRate.value,0);
@@ -1192,7 +1175,7 @@ function updateGoldTotals(){
 function previewQuick(){
  updateGoldTotals();
  let bu=n(buyChaosPerItemInput.value),bi=n(buyItemQty.value),sd=n(sellDivQty.value),si=n(sellItemQty.value);
- let buy=bu+(n(buyPlus.value)===1&&bu>0?1:0),sdEff=sd-(n(sellMinus.value)===1&&sd>1?1:0);
+ let buy=bu,sdEff=sd;
  const total=buy>0&&bi>0?buy*bi:0,sell=sdEff>0&&si>0?sdEff/si:0;
  buyChaosTotal.value=total?total.toFixed(2):"";
  sellPerItem.value=sell?sell.toFixed(6):"";
@@ -1215,8 +1198,8 @@ function previewQuick(){
 function saveQuick(){
  if(!selectedKey)return;
  faustus[selectedKey]={
-  buyUnit:n(buyChaosPerItemInput.value)||"",buyItem:n(buyItemQty.value)||"",buyPlus:n(buyPlus.value)||0,
-  sellDiv:n(sellDivQty.value)||"",sellItem:n(sellItemQty.value)||"",sellMinus:n(sellMinus.value)||0,
+  buyUnit:n(buyChaosPerItemInput.value)||"",buyItem:n(buyItemQty.value)||"",
+  sellDiv:n(sellDivQty.value)||"",sellItem:n(sellItemQty.value)||"",
   buyGoldPerItem:n(buyGoldPerItem.value)||0,sellGoldPerDivine:250,
   recycleGoldPerDivine:n(recycleGoldPerDivine.value)||0,
   buyGold:n(buyGoldFee.value)||0,sellGold:n(sellGoldFee.value)||0,
