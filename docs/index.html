@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PoE Allflame Flip Scanner v6.0.9</title>
+<title>PoE Allflame Flip Scanner v6.1.0</title>
 <style>
 :root{
   --bg:#0a1015;--panel:#151d24;--panel2:#1d2831;--line:#33434e;--text:#eef2f5;--muted:#9eacb8;
@@ -158,12 +158,17 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 .ratio3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
 #itemSearch{font-weight:700}
 @media(max-width:700px){.ratio3{grid-template-columns:1fr}}
+
+.chaosRoundBox{margin-top:7px;padding:8px;border:1px solid var(--line);border-radius:8px;background:#0d151b}
+.chaosRoundButtons{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.chaosRoundButtons button{width:auto;min-width:0;padding:6px 8px;font-size:11px;background:#243640;border-color:#425866}
+.chaosRoundButtons button.best{background:#76591f;border-color:#aa8136}
 </style>
 </head>
 <body>
 <div class="wrap">
-<h1>PoE Allflame Flip Scanner v6.0.9</h1>
-<div class="sub">V6.0.9: thêm hỗ trợ đầy đủ <b>Dead Man’s Sulphur</b>. Item giá dưới 1c này được phép vượt qua Min value chung nếu có dữ liệu/volume hợp lệ, đồng thời có alias + Gold Fee DB riêng.</div>
+<h1>PoE Allflame Flip Scanner v6.1.0</h1>
+<div class="sub">V6.1.0: Quick Faustus thêm <b>gợi ý mốc số lượng</b> để tổng BUY Chaos rơi vào các mốc tròn, hữu ích với item giá rất nhỏ như Dead Man’s Sulphur.</div>
 
 <div class="card">
   <label>Cloudflare Worker URL</label>
@@ -302,6 +307,11 @@ button.crossBtn.active{background:#62363a;border-color:#9a555d}
 <div><label>Số lượng item</label><input id="buyItemQty" type="number" min="1" step="1"></div>
 <div><label>Tổng Chaos</label><input id="buyChaosTotal" readonly></div>
 
+</div>
+<div id="chaosRoundSuggestions" class="chaosRoundBox">
+  <div class="small"><b>Gợi ý Qty cho tổng Chaos tròn</b></div>
+  <div id="chaosRoundButtons" class="chaosRoundButtons"></div>
+  <div id="chaosRoundHint" class="small" style="margin-top:5px"></div>
 </div>
 <div style="margin-top:10px"><b class="small">SELL — bán item lấy Divine</b></div>
 <div class="ratio3" style="margin-top:6px">
@@ -1183,6 +1193,79 @@ function updateGoldTotals(){
  recycleGoldTotal.value=recycleGold||"";
  closedLoopGoldPreview.value=(buyGold+sellGold+recycleGold)||"";
 }
+
+function applyChaosRoundQty(qty){
+ qty=Math.max(1,Math.floor(Number(qty)||0));
+ if(!qty)return;
+ buyItemQty.value=qty;
+ previewQuick();
+}
+function updateChaosRoundSuggestions(){
+ const buttons=document.getElementById("chaosRoundButtons");
+ const hint=document.getElementById("chaosRoundHint");
+ if(!buttons||!hint)return;
+
+ const unit=Math.max(0,n(buyChaosPerItemInput.value));
+ const currentQty=Math.max(1,Math.floor(n(buyItemQty.value,1)));
+ if(unit<=0){
+   buttons.innerHTML="";
+   hint.textContent="Nhập Chaos/item để nhận gợi ý.";
+   return;
+ }
+
+ const currentTotal=unit*currentQty;
+ const targets=new Set();
+ const steps=[1,5,10,25,50,100,250,500,1000];
+
+ for(const step of steps){
+   const center=Math.round(currentTotal/step)*step;
+   for(let k=-2;k<=2;k++){
+     const t=center+k*step;
+     if(t>0)targets.add(t);
+   }
+ }
+
+ const floorTotal=Math.floor(currentTotal);
+ for(let t=Math.max(1,floorTotal-3);t<=Math.ceil(currentTotal)+3;t++)targets.add(t);
+
+ const candidates=[];
+ for(const target of targets){
+   const raw=target/unit;
+   for(const qty of [Math.floor(raw),Math.round(raw),Math.ceil(raw)]){
+     if(qty<1)continue;
+     const actual=qty*unit;
+     const chaosErr=Math.abs(actual-target);
+     const qtyDelta=Math.abs(qty-currentQty);
+     const score=chaosErr*1000 + qtyDelta/Math.max(1,currentQty);
+     candidates.push({target,qty,actual,chaosErr,qtyDelta,score});
+   }
+ }
+
+ const seen=new Set();
+ const rows=candidates.filter(c=>{
+   if(seen.has(c.qty))return false;
+   seen.add(c.qty);
+   return true;
+ }).sort((a,b)=>a.score-b.score||a.qtyDelta-b.qtyDelta).slice(0,8);
+
+ if(!rows.length){
+   buttons.innerHTML="";
+   hint.textContent="Không tìm được mốc phù hợp.";
+   return;
+ }
+
+ const best=rows[0];
+ buttons.innerHTML=rows.map((c,i)=>{
+   const totalTxt=c.actual>=100?c.actual.toFixed(1):c.actual.toFixed(2);
+   return `<button type="button" class="${i===0?"best":""}" onclick="applyChaosRoundQty(${c.qty})" title="${c.qty.toLocaleString()} item × ${unit}c = ${c.actual.toFixed(4)}c">
+     ${c.qty.toLocaleString()} item → ${totalTxt}c
+   </button>`;
+ }).join("");
+
+ hint.innerHTML=`Hiện tại: <b>${currentQty.toLocaleString()}</b> item = <b>${currentTotal.toFixed(2)}c</b>. `
+  +`Gợi ý gần nhất: <b>${best.qty.toLocaleString()}</b> item = <b>${best.actual.toFixed(2)}c</b>.`;
+}
+
 function previewQuick(){
  updateGoldTotals();
  let bu=n(buyChaosPerItemInput.value),bi=n(buyItemQty.value),sd=n(sellDivQty.value),si=n(sellItemQty.value);
@@ -1190,6 +1273,7 @@ function previewQuick(){
  const total=buy>0&&bi>0?buy*bi:0,sell=sdEff>0&&si>0?sdEff/si:0;
  buyChaosTotal.value=total?total.toFixed(2):"";
  sellPerItem.value=sell?sell.toFixed(6):"";
+ updateChaosRoundSuggestions();
  if(!selectedKey){return}
  const dr=n(divRate.value,0);
  if(dr<=0){return}
